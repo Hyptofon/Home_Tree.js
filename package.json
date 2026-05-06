@@ -1,0 +1,26 @@
+{
+  "name": "home-tree-js",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "tsx": "^4.21.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.10"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.19.3",
+    "@types/howler": "^2.2.12",
+    "@types/three": "^0.167.0",
+    "howler": "^2.2.4",
+    "postprocessing": "^6.38.0",
+    "three": "^0.167.0",
+    "zustand": "^5.0.13"
+  }
+}
