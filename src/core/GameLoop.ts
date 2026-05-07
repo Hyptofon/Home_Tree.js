@@ -1,26 +1,45 @@
 import type { Updatable } from '../types/interfaces.ts';
+import { GAME_LOOP_CONFIG } from './coreConfig.ts';
+
+/** Constructor options for {@link GameLoop}. */
+export interface GameLoopOptions {
+  /** Maximum accepted delta in seconds before a frame is clamped. */
+  readonly maxDeltaSeconds?: number;
+}
 
 /**
- * Manages the core `requestAnimationFrame` loop.
- * Responsible strictly for calculating delta time and dispatching update calls.
- * Implements a maximum delta cap to prevent physics explosions.
+ * Owns the application `requestAnimationFrame` loop.
+ *
+ * The loop has a single responsibility: calculate a capped frame delta and
+ * dispatch updates in registration order. Rendering, physics, and UI sampling
+ * remain inside their own updatable systems.
  */
 export class GameLoop {
-  /** Internal array storing all registered objects that need per-frame updates. */
+  /** Ordered list of systems/entities that receive per-frame updates. */
   private readonly updatables: Updatable[] = [];
-  
-  /** Stores the requestAnimationFrame ID so the loop can be stopped. */
+
+  /** Active requestAnimationFrame id, or `null` when the loop is stopped. */
   private frameId: number | null = null;
-  
-  /** Tracks the timestamp of the previous frame to calculate delta time. */
+
+  /** Timestamp of the previous animation frame in milliseconds. */
   private lastTime = 0;
-  /** Max delta cap (seconds) — avoids physics explosion on tab switch. */
-  private readonly maxDelta = 0.05;
+
+  /** Maximum frame delta in seconds to keep simulation systems stable. */
+  private readonly maxDelta: number;
 
   /**
-   * Registers one or more updatable entities to the game loop.
-   * Entities are updated in the order they are registered.
-   * @param items Objects implementing the `Updatable` interface.
+   * Creates a frame loop with injectable timing config for tests and previews.
+   *
+   * @param options - Optional frame timing overrides.
+   */
+  constructor(options: GameLoopOptions = {}) {
+    this.maxDelta = options.maxDeltaSeconds ?? GAME_LOOP_CONFIG.MAX_DELTA_SECONDS;
+  }
+
+  /**
+   * Registers one or more systems for ordered updates.
+   *
+   * @param items - Objects implementing the `Updatable` interface.
    * @returns `this` for chaining.
    */
   register(...items: Updatable[]): this {
@@ -28,36 +47,34 @@ export class GameLoop {
     return this;
   }
 
-  /**
-   * Starts the animation loop. Safe to call multiple times.
-   */
+  /** Starts the animation loop. Safe to call multiple times. */
   start(): void {
     if (this.frameId !== null) return;
+
     this.lastTime = performance.now();
     this.frameId = requestAnimationFrame(this.tick);
   }
 
-  /**
-   * Stops the animation loop.
-   */
+  /** Stops the animation loop if it is currently active. */
   stop(): void {
-    if (this.frameId !== null) {
-      cancelAnimationFrame(this.frameId);
-      this.frameId = null;
-    }
+    if (this.frameId === null) return;
+
+    cancelAnimationFrame(this.frameId);
+    this.frameId = null;
   }
 
   /**
-   * Internal recursive tick function called by `requestAnimationFrame`.
-   * Calculates delta time and triggers updates.
-   * 
-   * @param time Timestamp provided by requestAnimationFrame.
+   * Processes a single animation frame and schedules the next one.
+   *
+   * @param time - Timestamp provided by `requestAnimationFrame`.
    */
   private readonly tick = (time: number): void => {
     const delta = Math.min((time - this.lastTime) / 1000, this.maxDelta);
     this.lastTime = time;
 
-    for (const u of this.updatables) u.update(delta);
+    for (const updatable of this.updatables) {
+      updatable.update(delta);
+    }
 
     this.frameId = requestAnimationFrame(this.tick);
   };

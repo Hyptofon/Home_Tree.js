@@ -1,103 +1,157 @@
 import * as THREE from 'three';
 
-/**
- * Configuration options for the Player's third-person follow camera.
- */
+import { InputManager } from '../core/InputManager.ts';
+import { PLAYER_CAMERA_CONFIG } from './playerConfig.ts';
+
+/** Runtime overrides for the player's third-person follow camera. */
 export type CameraConfig = {
-  /** Desired distance between the camera and the player (Z offset). */
-  distance:   number; 
-  /** Desired height offset above the player's root position. */
-  height:     number; 
-  /** Desired look-at Y offset (to look at the character's head/torso instead of feet). */
-  lookOffset: number; 
-  /** Easing factor applied per frame (0 to 1). Lower is smoother/slower. */
-  smoothing:  number;
+  /** Desired distance between camera and player root. */
+  readonly distance: number;
+  /** Vertical offset above the player root in third-person mode. */
+  readonly height: number;
+  /** Look-at target offset above the player root. */
+  readonly lookOffset: number;
+  /** Per-frame interpolation factor for third-person camera movement. */
+  readonly smoothing: number;
 };
 
-const DEFAULTS: CameraConfig = {
-  distance:   5,
-  height:     2.5,
-  lookOffset: 1.5,
-  smoothing:  0.1,
+const DEFAULT_CAMERA_CONFIG: CameraConfig = {
+  distance: PLAYER_CAMERA_CONFIG.DISTANCE,
+  height: PLAYER_CAMERA_CONFIG.HEIGHT,
+  lookOffset: PLAYER_CAMERA_CONFIG.LOOK_OFFSET,
+  smoothing: PLAYER_CAMERA_CONFIG.SMOOTHING,
 };
 
 /**
- * Manages the positioning and orientation of the active Three.js PerspectiveCamera.
- * 
-
- * - Follows a target Group (`root`) with a smoothed third-person offset.
- * - Provides a seamless toggle into a first-person view mode.
- * - Completely decoupled from input handling, animation, and physical movement.
+ * Controls the active perspective camera for the player feature.
+ *
+ * The camera consumes pointer-lock deltas, maintains orbit angles, and supports
+ * a first-person mode without coupling itself to player movement or animation.
  */
 export class PlayerCamera {
-  /** Active configuration merging DEFAULTS and any provided overrides. */
-  private readonly cfg: CameraConfig;
-  
-  /** Internal vector reused for calculating the lookAt target. */
-  private readonly _lookAt = new THREE.Vector3();
-  
-  /** Internal vector reused for calculating the desired camera position. */
-  private readonly _desired = new THREE.Vector3();
+  /** Active configuration after merging defaults with optional overrides. */
+  private readonly config: CameraConfig;
 
-  /** State flag indicating whether the camera is currently in 1st person mode. */
-  public isFirstPerson = false;
+  /** Scratch look target reused every frame. */
+  private readonly lookAtTarget = new THREE.Vector3();
 
-  /** Reference to the Three.js PerspectiveCamera being controlled. */
+  /** Scratch desired camera position reused every frame. */
+  private readonly desiredPosition = new THREE.Vector3();
+
+  /** Camera instance owned by SceneManager and controlled by this subsystem. */
   private readonly camera: THREE.PerspectiveCamera;
 
+  /** Shared input source for pointer-lock mouse deltas. */
+  private readonly input = InputManager.instance;
+
+  /** Whether first-person camera placement is active. */
+  private firstPerson = false;
+
+  /** Horizontal orbit angle around the player in radians. */
+  private azimuth: number = PLAYER_CAMERA_CONFIG.DEFAULT_AZIMUTH;
+
+  /** Vertical camera angle in radians. */
+  private elevation: number = PLAYER_CAMERA_CONFIG.DEFAULT_ELEVATION;
+
   /**
-   * Initializes the camera controller.
-   * 
-   * @param camera The active Three.js PerspectiveCamera instance to be controlled.
-   * @param cfg Optional overrides for the default third-person camera configuration.
+   * Creates a camera controller.
+   *
+   * @param camera - Active Three.js camera to position and orient.
+   * @param config - Optional third-person behavior overrides.
    */
   constructor(
     camera: THREE.PerspectiveCamera,
-    cfg: Partial<CameraConfig> = {},
+    config: Partial<CameraConfig> = {},
   ) {
     this.camera = camera;
-    this.cfg = { ...DEFAULTS, ...cfg };
+    this.config = { ...DEFAULT_CAMERA_CONFIG, ...config };
+  }
+
+  /** Returns true when the camera is currently in first-person mode. */
+  get isFirstPerson(): boolean {
+    return this.firstPerson;
   }
 
   /**
-   * Updates the camera position and look target.
-   * Call this every frame strictly *after* the player's physical root has been updated.
-   * 
-   * @param playerRoot The visual Three.js Group whose position and rotation the camera should track.
+   * Toggles first-person mode.
+   *
+   * @returns The new first-person state.
+   */
+  toggleMode(): boolean {
+    this.firstPerson = !this.firstPerson;
+    return this.firstPerson;
+  }
+
+  /**
+   * Updates camera position and orientation after player movement.
+   *
+   * @param playerRoot - Visual player root to follow.
    */
   update(playerRoot: THREE.Group): void {
-    const { cfg, camera } = this;
-    const angle = playerRoot.rotation.y;
+    this.consumeLookInput();
 
-    if (this.isFirstPerson) {
-      this._desired.set(
-        playerRoot.position.x - Math.sin(angle) * 0.2,
-        playerRoot.position.y + 1.7,
-        playerRoot.position.z - Math.cos(angle) * 0.2
-      );
-      camera.position.lerp(this._desired, 0.5);
-
-      this._lookAt.set(
-        playerRoot.position.x - Math.sin(angle) * 10,
-        playerRoot.position.y + 1.7,
-        playerRoot.position.z - Math.cos(angle) * 10
-      );
-      camera.lookAt(this._lookAt);
-    } else {
-      this._desired.set(
-        playerRoot.position.x + Math.sin(angle) * cfg.distance,
-        playerRoot.position.y + cfg.height,
-        playerRoot.position.z + Math.cos(angle) * cfg.distance,
-      );
-
-      camera.position.lerp(this._desired, cfg.smoothing);
-
-      this._lookAt.set(
-        playerRoot.position.x,
-        playerRoot.position.y + cfg.lookOffset,
-        playerRoot.position.z,
-      );
-      camera.lookAt(this._lookAt);
+    if (this.firstPerson) {
+      this.updateFirstPerson(playerRoot);
+      return;
     }
+
+    this.updateThirdPerson(playerRoot);
+  }
+
+  /** Applies pointer-lock deltas to orbit angles and clamps pitch. */
+  private consumeLookInput(): void {
+    const { x, y } = this.input.consumeMouseDelta();
+    this.azimuth -= x * PLAYER_CAMERA_CONFIG.MOUSE_SENSITIVITY;
+    this.elevation -= y * PLAYER_CAMERA_CONFIG.MOUSE_SENSITIVITY;
+
+    const maxElevation = Math.PI / 2 - PLAYER_CAMERA_CONFIG.ELEVATION_PADDING;
+    this.elevation = THREE.MathUtils.clamp(this.elevation, -maxElevation, maxElevation);
+  }
+
+  /**
+   * Positions the camera at the character head and looks along orbit angles.
+   *
+   * @param playerRoot - Visual player root.
+   */
+  private updateFirstPerson(playerRoot: THREE.Group): void {
+    this.desiredPosition.set(
+      playerRoot.position.x,
+      playerRoot.position.y + PLAYER_CAMERA_CONFIG.FIRST_PERSON_HEAD_HEIGHT,
+      playerRoot.position.z,
+    );
+    this.camera.position.lerp(
+      this.desiredPosition,
+      PLAYER_CAMERA_CONFIG.FIRST_PERSON_SMOOTHING,
+    );
+
+    this.lookAtTarget.set(
+      this.camera.position.x + Math.sin(this.azimuth) * Math.cos(this.elevation),
+      this.camera.position.y + Math.sin(this.elevation),
+      this.camera.position.z + Math.cos(this.azimuth) * Math.cos(this.elevation),
+    );
+    this.camera.lookAt(this.lookAtTarget);
+  }
+
+  /**
+   * Positions the camera on a smoothed third-person orbit.
+   *
+   * @param playerRoot - Visual player root.
+   */
+  private updateThirdPerson(playerRoot: THREE.Group): void {
+    const { config } = this;
+    const cosElevation = Math.cos(this.elevation);
+    this.desiredPosition.set(
+      playerRoot.position.x + config.distance * Math.sin(this.azimuth) * cosElevation,
+      playerRoot.position.y + config.height + config.distance * Math.sin(this.elevation),
+      playerRoot.position.z + config.distance * Math.cos(this.azimuth) * cosElevation,
+    );
+    this.camera.position.lerp(this.desiredPosition, config.smoothing);
+
+    this.lookAtTarget.set(
+      playerRoot.position.x,
+      playerRoot.position.y + config.lookOffset,
+      playerRoot.position.z,
+    );
+    this.camera.lookAt(this.lookAtTarget);
   }
 }

@@ -1,3 +1,9 @@
+/**
+ * Logical animation states supported by the player animation subsystem.
+ *
+ * Asset paths and playback tuning live in player configuration modules; this
+ * file remains a pure shared type contract.
+ */
 export type AnimationName =
   | 'idle'
   | 'walk'
@@ -8,17 +14,3 @@ export type AnimationName =
   | 'strafeRight'
   | 'turnLeft'
   | 'turnRight';
-
-export const ANIMATION_SOURCES: Readonly<Record<AnimationName, string>> = {
-  idle: '/animations/character/idle.glb',
-  walk: '/animations/character/walking.glb',
-  walkBack: '/animations/character/walking.glb',
-  run: '/animations/character/standard_run.glb',
-  jump: '/animations/character/jump.glb',
-  strafeLeft: '/animations/character/left_strafe_walking.glb',
-  strafeRight: '/animations/character/right_strafe_walking.glb',
-  turnLeft: '/animations/character/left_turn_90.glb',
-  turnRight: '/animations/character/right_turn_90.glb',
-} as const;
-
-export const CHARACTER_MODEL_PATH = '/mosels/character.glb';

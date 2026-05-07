@@ -1,51 +1,97 @@
 import './style.css';
-import { SceneManager } from './core/SceneManager.ts';
-import { GameLoop }     from './core/GameLoop.ts';
-import { Environment }  from './entities/Environment.ts';
-import { Player }       from './player/Player.ts';
+import * as THREE from 'three';
+
+import { APP_CONFIG } from './config/appConfig.ts';
+import { GameLoop } from './core/GameLoop.ts';
+import { InputManager } from './core/InputManager.ts';
 import { PhysicsManager } from './core/PhysicsManager.ts';
+import { SceneManager } from './core/SceneManager.ts';
+import { Environment } from './entities/environment/index.ts';
+import { Player } from './player/Player.ts';
+import { requireElementById } from './shared/dom.ts';
+import {
+  DayNightCycle,
+  PostProcessingController,
+} from './systems/dayNight/index.ts';
+import { ProjectMenuPanel } from './ui/projectMenu/ProjectMenuPanel.ts';
+import { TimeControlPanel } from './ui/timeControls/TimeControlPanel.ts';
 
 /**
- * The main entry point of the application.
- * 
-
- * - Initializes all core systems (Rendering, Physics, Input, Game Loop).
- * - Wires up dependencies (e.g., passing the physics world to the player and environment).
- * - Manages the loading screen and error boundary.
- * - Starts the game loop.
+ * Application composition root.
+ *
+ * This file wires independently owned systems in startup order:
+ * core engine services, static environment, player feature, rendering pipeline,
+ * environment simulation, DOM UI, then the frame loop.
  */
 async function bootstrap(): Promise<void> {
-  const canvas = document.getElementById('webgl-canvas') as HTMLCanvasElement;
+  const canvas = requireElementById<HTMLCanvasElement>('webgl-canvas');
+  const loaderElement = requireElementById<HTMLElement>('loader');
+  const loadingTextElement = requireElementById<HTMLElement>('loading-text');
+
+  const input = InputManager.instance;
+  input.bindPointerLockTarget(canvas);
 
   const sceneManager = new SceneManager(canvas);
-  const loop         = new GameLoop();
-  
+  const loop = new GameLoop();
+
   const physics = new PhysicsManager();
   await physics.init();
 
-  const env = new Environment(physics.world);
-  env.addTo(sceneManager.scene);
+  const environment = new Environment(physics.world);
+  environment.addTo(sceneManager.scene);
 
   const player = new Player(sceneManager.camera, physics.world);
   sceneManager.scene.add(player.root);
 
-  const loaderEl      = document.getElementById('loader')       as HTMLElement;
-  const loadingTextEl = document.getElementById('loading-text') as HTMLElement;
+  const postFx = new PostProcessingController(
+    sceneManager.renderer,
+    sceneManager.scene,
+    sceneManager.camera,
+  );
+
+  const dayNight = new DayNightCycle(
+    sceneManager.scene,
+    sceneManager.camera,
+    sceneManager.renderer,
+    postFx,
+    new THREE.TextureLoader(),
+    {
+      cycleDurationSeconds: APP_CONFIG.DAY_NIGHT_CYCLE_SECONDS,
+      startTime: APP_CONFIG.START_TIME_OF_DAY,
+      timeScale: APP_CONFIG.DAY_NIGHT_TIME_SCALE,
+    },
+  );
 
   try {
-    await player.load();
-    loaderEl.classList.add('hidden');
-  } catch (err) {
-    loadingTextEl.textContent = `❌ ${(err as Error).message}`;
-    console.error('[bootstrap] Player load failed:', err);
-    return; 
+    await Promise.all([
+      player.load(),
+      dayNight.init(),
+    ]);
+
+    sceneManager.delegateRendering = true;
+    loaderElement.classList.add('hidden');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown loading error';
+    loadingTextElement.textContent = `Load failed: ${message}`;
+    console.error('[bootstrap] Load failed:', error);
+    return;
   }
 
-  loop.register(physics, player, sceneManager);
+  const timeControls = new TimeControlPanel(dayNight, {
+    cycleDurationSeconds: APP_CONFIG.DAY_NIGHT_CYCLE_SECONDS,
+  });
+  new ProjectMenuPanel({
+    hudTargets: [
+      requireElementById<HTMLElement>('hud'),
+      requireElementById<HTMLElement>('time-controls'),
+    ],
+  });
+
+  loop.register(physics, player, sceneManager, dayNight, timeControls);
   loop.start();
 
-  window.addEventListener('keydown', (e) => {
-    if (e.code === 'KeyC') {
+  window.addEventListener('keydown', (event) => {
+    if (event.code === 'KeyC') {
       player.toggleCamera();
     }
   });

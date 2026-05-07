@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 
 import type { AnimationName } from '../types/animations.ts';
-import { ANIMATION_SOURCES } from '../types/animations.ts';
 import { ModelLoader } from '../loaders/ModelLoader.ts';
+import { ANIMATION_SOURCES } from './animationConfig.ts';
+import { PLAYER_ANIMATION_CONFIG } from './playerConfig.ts';
 
 /**
  * Manages the AnimationMixer and clip lifecycle for the player.
@@ -10,7 +11,7 @@ import { ModelLoader } from '../loaders/ModelLoader.ts';
 
  * - Loads and parses Three.js AnimationClips from external GLB files via ModelLoader.
  * - Handles smooth cross-fading (`crossFadeTo`) between animation states.
- * - Manages playback loops, time scales (e.g., reversing walk), and clamping.
+ * - Manages playback loops, time scales, and clamping.
  * - Decoupled entirely from input, movement, and camera logic.
  */
 export class PlayerAnimator {
@@ -63,7 +64,7 @@ export class PlayerAnimator {
         const action = this.mixer.clipAction(clip);
 
         if (name === 'walkBack') {
-          action.timeScale = -1;
+          action.timeScale = PLAYER_ANIMATION_CONFIG.REVERSE_WALK_TIME_SCALE;
         }
         if (name === 'jump') {
           action.setLoop(THREE.LoopOnce, 1);
@@ -83,9 +84,9 @@ export class PlayerAnimator {
    * the bones from stretching abruptly when blending animations of different lengths.
    * 
    * @param name The registered AnimationName to play.
-   * @param fadeTime The duration of the cross-fade blend in seconds (default: 0.2).
+   * @param fadeTime The duration of the cross-fade blend in seconds.
    */
-  play(name: AnimationName, fadeTime = 0.2): void {
+  play(name: AnimationName, fadeTime: number = PLAYER_ANIMATION_CONFIG.DEFAULT_FADE_SECONDS): void {
     if (name === this.currentName && this.currentAction?.isRunning()) return;
 
     const next = this.actions.get(name);
@@ -97,8 +98,11 @@ export class PlayerAnimator {
     next.reset();
     next.setEffectiveWeight(1);
     
-    if (name === 'walkBack') next.timeScale = -1;
-    else next.timeScale = 1;
+    if (name === 'walkBack') {
+      next.timeScale = PLAYER_ANIMATION_CONFIG.REVERSE_WALK_TIME_SCALE;
+    } else {
+      next.timeScale = PLAYER_ANIMATION_CONFIG.DEFAULT_TIME_SCALE;
+    }
 
     if (this.currentAction && fadeTime > 0 && this.currentAction !== next) {
       next.play();
@@ -112,6 +116,7 @@ export class PlayerAnimator {
     this.currentName   = name;
   }
 
+  /** Currently active logical animation state. */
   get activeAnimation(): AnimationName { return this.currentName; }
 
   /**

@@ -1,191 +1,273 @@
 import * as THREE from 'three';
-import { InputManager } from '../core/InputManager.ts';
-import type { AnimationName } from '../types/animations.ts';
 import RAPIER from '@dimforge/rapier3d-compat';
 
+import { InputManager } from '../core/InputManager.ts';
+import type { AnimationName } from '../types/animations.ts';
+import { PLAYER_CONTROLLER_CONFIG } from './playerConfig.ts';
+
+/** High-level movement state resolved by the controller for animation systems. */
 export type ControllerState = {
-  desiredAnimation: AnimationName;
+  /** Logical animation that best matches the current movement state. */
+  readonly desiredAnimation: AnimationName;
 };
 
 /**
- * Manages the physical movement, jumping, collisions, and state resolution of the Player.
- * Uses `@dimforge/rapier3d-compat` for robust collision detection.
- * 
-
- * - Translates input intents (W, A, S, D, Space) into physical velocity.
- * - Manages Rapier's KinematicCharacterController to prevent walking through walls.
- * - Computes the correct AnimationName based on current movement state.
+ * Converts gameplay input into Rapier-backed kinematic character movement.
+ *
+ * The controller owns collision bodies and movement state only. Visual loading,
+ * animation blending, and camera behavior are handled by sibling player
+ * subsystems through composition.
  */
 export class PlayerController {
-  /** Walk movement speed in m/s. */
-  readonly moveSpeed = 4.0;
-  
-  /** Sprint movement speed in m/s. */
-  readonly runSpeed = 8.0;
-  
-  /** Turning speed in radians per second. */
-  readonly rotateSpeed = Math.PI * 1.6;
-  
-  /** Upward velocity applied when jumping. */
-  readonly jumpForce = 8.0;
-  
-  /** Downward gravity acceleration applied to the character (should match world gravity). */
-  readonly gravity = -20.0;
-  
-  /** Current vertical velocity. */
-  private jumpVelocity = 0;
-  
-  /** Whether the character is currently in the air. */
-  private isJumping = false;
-  
-  /** Tracks if the jump key has been consumed to prevent hold-to-jump spam. */
-  private jumpConsumed = false;
-  
-  /** Current velocity vector of the character. */
+  /** Current smoothed horizontal velocity in world units per second. */
   private readonly velocity = new THREE.Vector3();
 
-  /** Reference to the InputManager singleton. */
+  /** Local input direction reused every frame to avoid hot-path allocations. */
+  private readonly localDirection = new THREE.Vector3();
+
+  /** Target horizontal velocity reused every frame. */
+  private readonly targetVelocity = new THREE.Vector3();
+
+  /** Camera forward vector projected onto the ground plane. */
+  private readonly cameraForward = new THREE.Vector3();
+
+  /** Camera right vector projected onto the ground plane. */
+  private readonly cameraRight = new THREE.Vector3();
+
+  /** Rapier translation object reused for kinematic movement queries. */
+  private readonly translationOffset: RAPIER.Vector = { x: 0, y: 0, z: 0 };
+
+  /** Input source shared by the game systems. */
   private readonly input = InputManager.instance;
-  
-  /** The Rapier RigidBody driving the character collisions. */
-  private rigidBody: RAPIER.RigidBody;
-  
-  /** The Rapier Capsule collider shape for the character. */
-  private collider: RAPIER.Collider;
-  
-  /** The Rapier character controller for resolving kinematic movements against solid bodies. */
-  private characterController: RAPIER.KinematicCharacterController;
+
+  /** Rapier world used for teardown of owned physics objects. */
+  private readonly world: RAPIER.World;
+
+  /** Kinematic body that represents the character in physics space. */
+  private readonly rigidBody: RAPIER.RigidBody;
+
+  /** Capsule collider attached to the character body. */
+  private readonly collider: RAPIER.Collider;
+
+  /** Rapier controller that computes collision-aware kinematic motion. */
+  private readonly characterController: RAPIER.KinematicCharacterController;
+
+  /** Current vertical velocity used by jump and gravity integration. */
+  private jumpVelocity = 0;
+
+  /** True while the controller is airborne. */
+  private isJumping = false;
+
+  /** Prevents holding Space from continuously retriggering jumps. */
+  private jumpConsumed = false;
 
   /**
-   * Initializes the PlayerController physics bodies.
-   * @param world The active Rapier physics world.
+   * Creates the physics body, capsule collider, and kinematic controller.
+   *
+   * @param world - Active Rapier world.
    */
   constructor(world: RAPIER.World) {
-    const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0, 0.9, 0);
-    this.rigidBody = world.createRigidBody(bodyDesc);
-    const colliderDesc = RAPIER.ColliderDesc.capsule(0.5, 0.4);
-    this.collider = world.createCollider(colliderDesc, this.rigidBody);
+    this.world = world;
 
-    const offset = 0.01;
-    this.characterController = world.createCharacterController(offset);
-    this.characterController.enableAutostep(0.5, 0.2, true);
-    this.characterController.enableSnapToGround(0.5);
+    const cfg = PLAYER_CONTROLLER_CONFIG;
+    this.rigidBody = world.createRigidBody(
+      RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(
+        cfg.SPAWN_POSITION.x,
+        cfg.SPAWN_POSITION.y,
+        cfg.SPAWN_POSITION.z,
+      ),
+    );
+    this.collider = world.createCollider(
+      RAPIER.ColliderDesc.capsule(cfg.CAPSULE_HALF_HEIGHT, cfg.CAPSULE_RADIUS),
+      this.rigidBody,
+    );
+
+    this.characterController = world.createCharacterController(cfg.CHARACTER_CONTROLLER_OFFSET);
+    this.characterController.enableAutostep(
+      cfg.AUTOSTEP_MAX_HEIGHT,
+      cfg.AUTOSTEP_MIN_WIDTH,
+      true,
+    );
+    this.characterController.enableSnapToGround(cfg.SNAP_TO_GROUND_DISTANCE);
   }
 
   /**
-   * Processes input, updates physics state, applies movement to the rigid body,
-   * syncs the visual root position, and determines which animation should play.
-   * 
-   * @param root The visual Three.js Group representing the player model.
-   * @param delta Time passed since the last frame in seconds.
-   * @returns The resolved ControllerState containing the desired animation name.
+   * Updates movement, collision resolution, root transform, and animation state.
+   *
+   * @param root - Visual player group synced to the physics body.
+   * @param delta - Frame delta in seconds.
+   * @param camera - Active camera used for camera-relative movement.
    */
-  update(root: THREE.Group, delta: number): ControllerState {
-    const { input } = this;
-    const wantsForward = input.forward;
-    const wantsBackward = input.backward;
-    const wantsLeft = input.left;
-    const wantsRight = input.right;
-    const wantsSprint = input.sprint;
-    const wantsJump = input.jump;
+  update(root: THREE.Group, delta: number, camera: THREE.Camera): ControllerState {
+    const wantsForward = this.input.forward;
+    const wantsBackward = this.input.backward;
+    const wantsLeft = this.input.left;
+    const wantsRight = this.input.right;
+    const wantsSprint = this.input.sprint;
+    const wantsJump = this.input.jump;
+    const isMoving = wantsForward || wantsBackward || wantsLeft || wantsRight;
 
-    const movingForwardBack = wantsForward || wantsBackward;
-    const onlyStrafe = (wantsLeft || wantsRight) && !movingForwardBack;
-
-    if (!onlyStrafe) {
-      if (wantsLeft) root.rotation.y += this.rotateSpeed * delta;
-      if (wantsRight) root.rotation.y -= this.rotateSpeed * delta;
-    }
-    const targetSpeed = wantsSprint ? this.runSpeed : this.moveSpeed;
-    const localDir = new THREE.Vector3();
-
-    if (wantsForward) localDir.z -= 1;
-    if (wantsBackward) localDir.z += 1;
-    if (onlyStrafe) {
-      if (wantsLeft) localDir.x -= 1;
-      if (wantsRight) localDir.x += 1;
-    }
-
-    if (localDir.lengthSq() > 0) {
-      localDir.normalize();
-    }
-
-    const targetVelocity = localDir.applyEuler(new THREE.Euler(0, root.rotation.y, 0));
-    targetVelocity.multiplyScalar(localDir.lengthSq() > 0 ? targetSpeed : 0);
-
-    const friction = 10.0;
-    this.velocity.lerp(targetVelocity, friction * delta);
-
-    const translationOffset = new RAPIER.Vector3(
-      this.velocity.x * delta,
-      this.jumpVelocity * delta,
-      this.velocity.z * delta
+    this.resolveHorizontalVelocity(
+      root,
+      camera,
+      delta,
+      wantsForward,
+      wantsBackward,
+      wantsLeft,
+      wantsRight,
+      wantsSprint,
     );
+    this.integrateCharacter(root, delta);
+    this.integrateJump(delta, wantsJump);
 
-    this.characterController.computeColliderMovement(this.collider, translationOffset);
-    const computedMovement = this.characterController.computedMovement();
+    return {
+      desiredAnimation: this.resolveAnimation(isMoving, wantsSprint),
+    };
+  }
 
-    const newPos = this.rigidBody.translation();
-    newPos.x += computedMovement.x;
-    newPos.y += computedMovement.y;
-    newPos.z += computedMovement.z;
-    this.rigidBody.setNextKinematicTranslation(newPos);
-    root.position.set(newPos.x, newPos.y - 0.9, newPos.z);
-
-    const isGrounded = this.characterController.computedGrounded();
-    if (isGrounded && this.jumpVelocity <= 0) {
-      this.isJumping = false;
-      this.jumpVelocity = 0;
-    } else if (!isGrounded) {
-      this.isJumping = true;
-      this.jumpVelocity += this.gravity * delta;
-    }
-
-    if (wantsJump && isGrounded && !this.jumpConsumed) {
-      this.isJumping = true;
-      this.jumpVelocity = this.jumpForce;
-      this.jumpConsumed = true;
-    }
-    if (!wantsJump) {
-      this.jumpConsumed = false;
-    }
-
-    const desiredAnimation = this.resolveAnimation(
-      wantsForward, wantsBackward,
-      wantsLeft, wantsRight,
-      wantsSprint, onlyStrafe,
-    );
-
-    return { desiredAnimation };
+  /** Removes Rapier objects owned by the controller. */
+  dispose(): void {
+    this.world.removeCharacterController(this.characterController);
+    this.world.removeRigidBody(this.rigidBody);
   }
 
   /**
-   * Determines the logical animation state based on current movement flags.
-   * 
-   * @param forward True if moving forward.
-   * @param backward True if moving backward.
-   * @param left True if strafing/turning left.
-   * @param right True if strafing/turning right.
-   * @param sprint True if sprint key is held.
-   * @param strafe True if purely strafing (no forward/backward input).
-   * @returns The AnimationName to be passed to the Animator.
+   * Resolves smoothed camera-relative horizontal velocity.
+   *
+   * @param root - Visual root used for character facing.
+   * @param camera - Active camera.
+   * @param delta - Frame delta in seconds.
+   * @param forward - Whether forward input is active.
+   * @param backward - Whether backward input is active.
+   * @param left - Whether left input is active.
+   * @param right - Whether right input is active.
+   * @param sprint - Whether sprint input is active.
    */
-  private resolveAnimation(
+  private resolveHorizontalVelocity(
+    root: THREE.Group,
+    camera: THREE.Camera,
+    delta: number,
     forward: boolean,
     backward: boolean,
     left: boolean,
     right: boolean,
     sprint: boolean,
-    strafe: boolean,
-  ): AnimationName {
+  ): void {
+    const cfg = PLAYER_CONTROLLER_CONFIG;
+    this.localDirection.set(0, 0, 0);
+    this.targetVelocity.set(0, 0, 0);
+
+    if (forward) this.localDirection.z -= 1;
+    if (backward) this.localDirection.z += 1;
+    if (left) this.localDirection.x -= 1;
+    if (right) this.localDirection.x += 1;
+
+    if (this.localDirection.lengthSq() > 0) {
+      this.localDirection.normalize();
+
+      this.cameraForward.set(0, 0, -1).applyQuaternion(camera.quaternion);
+      this.cameraForward.y = 0;
+      this.cameraForward.normalize();
+
+      this.cameraRight.set(1, 0, 0).applyQuaternion(camera.quaternion);
+      this.cameraRight.y = 0;
+      this.cameraRight.normalize();
+
+      this.targetVelocity
+        .copy(this.cameraForward)
+        .multiplyScalar(-this.localDirection.z)
+        .addScaledVector(this.cameraRight, this.localDirection.x)
+        .multiplyScalar(sprint ? cfg.RUN_SPEED : cfg.MOVE_SPEED);
+
+      this.rotateRootTowardVelocity(root, delta);
+    }
+
+    this.velocity.lerp(
+      this.targetVelocity,
+      Math.min(1, cfg.VELOCITY_FRICTION * delta),
+    );
+  }
+
+  /**
+   * Smoothly rotates the visual root toward the desired movement direction.
+   *
+   * @param root - Visual player root.
+   * @param delta - Frame delta in seconds.
+   */
+  private rotateRootTowardVelocity(root: THREE.Group, delta: number): void {
+    const targetRotation = Math.atan2(this.targetVelocity.x, this.targetVelocity.z) + Math.PI;
+    const shortestAngle = THREE.MathUtils.euclideanModulo(
+      targetRotation - root.rotation.y + Math.PI,
+      Math.PI * 2,
+    ) - Math.PI;
+
+    root.rotation.y += shortestAngle * PLAYER_CONTROLLER_CONFIG.ROTATE_SPEED * delta;
+  }
+
+  /**
+   * Applies computed movement through Rapier and syncs the visual root.
+   *
+   * @param root - Visual player root.
+   * @param delta - Frame delta in seconds.
+   */
+  private integrateCharacter(root: THREE.Group, delta: number): void {
+    this.translationOffset.x = this.velocity.x * delta;
+    this.translationOffset.y = this.jumpVelocity * delta;
+    this.translationOffset.z = this.velocity.z * delta;
+
+    this.characterController.computeColliderMovement(this.collider, this.translationOffset);
+    const computedMovement = this.characterController.computedMovement();
+    const newPosition = this.rigidBody.translation();
+    newPosition.x += computedMovement.x;
+    newPosition.y += computedMovement.y;
+    newPosition.z += computedMovement.z;
+
+    this.rigidBody.setNextKinematicTranslation(newPosition);
+    root.position.set(
+      newPosition.x,
+      newPosition.y - PLAYER_CONTROLLER_CONFIG.CHARACTER_GROUND_OFFSET,
+      newPosition.z,
+    );
+  }
+
+  /**
+   * Integrates jump and gravity state after collision movement has resolved.
+   *
+   * @param delta - Frame delta in seconds.
+   * @param wantsJump - Whether jump input is active this frame.
+   */
+  private integrateJump(delta: number, wantsJump: boolean): void {
+    const isGrounded = this.characterController.computedGrounded();
+
+    if (isGrounded && this.jumpVelocity <= 0) {
+      this.isJumping = false;
+      this.jumpVelocity = 0;
+    } else if (!isGrounded) {
+      this.isJumping = true;
+      this.jumpVelocity += PLAYER_CONTROLLER_CONFIG.GRAVITY * delta;
+    }
+
+    if (wantsJump && isGrounded && !this.jumpConsumed) {
+      this.isJumping = true;
+      this.jumpVelocity = PLAYER_CONTROLLER_CONFIG.JUMP_FORCE;
+      this.jumpConsumed = true;
+    }
+
+    if (!wantsJump) {
+      this.jumpConsumed = false;
+    }
+  }
+
+  /**
+   * Determines the logical animation from movement and airborne state.
+   *
+   * @param isMoving - True if any movement key is pressed.
+   * @param sprint - True if sprint is held.
+   */
+  private resolveAnimation(isMoving: boolean, sprint: boolean): AnimationName {
     if (this.isJumping) return 'jump';
-    if (strafe && left) return 'strafeLeft';
-    if (strafe && right) return 'strafeRight';
-    if (forward && sprint) return 'run';
-    if (forward) return 'walk';
-    if (backward) return 'walkBack';
-    if (!forward && !backward && left) return 'walk';
-    if (!forward && !backward && right) return 'walk';
+    if (isMoving && sprint) return 'run';
+    if (isMoving) return 'walk';
     return 'idle';
   }
 }
