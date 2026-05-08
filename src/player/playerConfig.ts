@@ -7,7 +7,7 @@
 
 /** Movement and Rapier character-controller tuning. */
 export const PLAYER_CONTROLLER_CONFIG = {
-  SPAWN_POSITION: { x: 0, y: 0.9, z: 0 },
+  SPAWN_POSITION: { x: 0, y: 0.9, z: -58 },
   CHARACTER_GROUND_OFFSET: 0.9,
   CAPSULE_HALF_HEIGHT: 0.5,
   CAPSULE_RADIUS: 0.4,
@@ -25,10 +25,10 @@ export const PLAYER_CONTROLLER_CONFIG = {
 
 /** Default third-person and first-person camera behavior. */
 export const PLAYER_CAMERA_CONFIG = {
-  DISTANCE: 5,
-  HEIGHT: 2.5,
+  DISTANCE: 3.2,
+  HEIGHT: 1.8,
   LOOK_OFFSET: 1.5,
-  SMOOTHING: 0.1,
+  SMOOTHING: 0.09,
   FIRST_PERSON_HEAD_HEIGHT: 1.7,
   FIRST_PERSON_SMOOTHING: 0.5,
   ELEVATION_PADDING: 0.05,
@@ -39,7 +39,7 @@ export const PLAYER_CAMERA_CONFIG = {
 
 /** Character model asset and orientation defaults. */
 export const PLAYER_MODEL_CONFIG = {
-  CHARACTER_MODEL_PATH: '/mosels/character.glb',
+  CHARACTER_MODEL_PATH: '/models/character.glb',
   MIXAMO_FORWARD_ROTATION_Y: Math.PI,
 } as const;
 

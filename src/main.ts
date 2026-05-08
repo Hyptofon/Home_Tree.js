@@ -6,13 +6,16 @@ import { GameLoop } from './core/GameLoop.ts';
 import { InputManager } from './core/InputManager.ts';
 import { PhysicsManager } from './core/PhysicsManager.ts';
 import { SceneManager } from './core/SceneManager.ts';
+
 import { Environment } from './entities/environment/index.ts';
+import { Skyscraper } from './entities/skyscraper/index.ts';
 import { Player } from './player/Player.ts';
 import { requireElementById } from './shared/dom.ts';
 import {
   DayNightCycle,
   PostProcessingController,
 } from './systems/dayNight/index.ts';
+import { EnvironmentMapSystem } from './systems/rendering/index.ts';
 import { ProjectMenuPanel } from './ui/projectMenu/ProjectMenuPanel.ts';
 import { TimeControlPanel } from './ui/timeControls/TimeControlPanel.ts';
 
@@ -37,11 +40,22 @@ async function bootstrap(): Promise<void> {
   const physics = new PhysicsManager();
   await physics.init();
 
+  const environmentMap = new EnvironmentMapSystem(
+    sceneManager.renderer,
+    sceneManager.scene,
+  );
+  environmentMap.init();
+
   const environment = new Environment(physics.world);
   environment.addTo(sceneManager.scene);
 
+
+  const skyscraper = new Skyscraper(physics.world);
+  skyscraper.addTo(sceneManager.scene);
+
   const player = new Player(sceneManager.camera, physics.world);
   sceneManager.scene.add(player.root);
+
 
   const postFx = new PostProcessingController(
     sceneManager.renderer,
@@ -65,6 +79,7 @@ async function bootstrap(): Promise<void> {
   try {
     await Promise.all([
       player.load(),
+      skyscraper.load(),
       dayNight.init(),
     ]);
 

@@ -80,6 +80,7 @@ export class DayNightCycle implements Updatable, Disposable {
   // ── Dependencies ───────────────────────────────────────────────────────────
   private readonly scene:    THREE.Scene;
   private readonly camera:   THREE.Camera;
+  private readonly renderer: THREE.WebGLRenderer;
   private readonly postFx:   PostProcessingController;
   private readonly texLoader: THREE.TextureLoader;
 
@@ -105,17 +106,19 @@ export class DayNightCycle implements Updatable, Disposable {
   private stars!:  StarField;
   private clouds!: CloudSystem;
   private moon!:   MoonSystem;
+  private postFxHealthy = true;
 
   constructor(
     scene:    THREE.Scene,
     camera:   THREE.Camera,
-    _renderer: THREE.WebGLRenderer,
+    renderer: THREE.WebGLRenderer,
     postFx:   PostProcessingController,
     texLoader: THREE.TextureLoader,
     options:  DayNightCycleOptions = {},
   ) {
     this.scene    = scene;
     this.camera   = camera;
+    this.renderer = renderer;
     this.postFx   = postFx;
     this.texLoader = texLoader;
 
@@ -192,10 +195,22 @@ export class DayNightCycle implements Updatable, Disposable {
     this.moon.update(this.time);
     this.clouds.update(delta, phase, blend);
 
-    // PostFX: lerp factor 2*delta ensures smooth but responsive transitions
+    // PostFX: lerp factor 2*delta ensures smooth but responsive transitions.
+    // If the composer fails at runtime, keep rendering directly so UI time and
+    // camera updates do not freeze on a black frame.
     const postTarget = PHASE_DEFINITIONS[phase].postFx;
-    this.postFx.update(postTarget, clamp(delta * 2, 0, 1), delta);
-    this.postFx.render(delta);
+    if (this.postFxHealthy) {
+      try {
+        this.postFx.update(postTarget, clamp(delta * 2, 0, 1), delta);
+        this.postFx.render(delta);
+        return;
+      } catch (error) {
+        this.postFxHealthy = false;
+        console.error('[DayNightCycle] PostFX failed, falling back to direct render.', error);
+      }
+    }
+
+    this.renderer.render(this.scene, this.camera);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -280,6 +295,7 @@ export class DayNightCycle implements Updatable, Disposable {
     this.sun.shadow.camera.top    =  SUN_CONFIG.SHADOW_CAMERA_EXTENT;
     this.sun.shadow.camera.bottom = -SUN_CONFIG.SHADOW_CAMERA_EXTENT;
     this.sun.shadow.bias          = SUN_CONFIG.SHADOW_BIAS;
+    this.sun.shadow.normalBias    = SUN_CONFIG.SHADOW_NORMAL_BIAS;
   }
 
   private buildSky(): void {

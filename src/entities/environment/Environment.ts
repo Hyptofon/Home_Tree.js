@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 
+import { disposeObjectTree } from '../../shared/three/dispose.ts';
 import { ENVIRONMENT_CONFIG } from './environmentConfig.ts';
 
 /**
@@ -31,7 +32,6 @@ export class Environment {
     this.group.name = 'Environment';
 
     this.buildFloor();
-    this.buildGrid();
     this.buildBoxProps();
   }
 
@@ -51,16 +51,7 @@ export class Environment {
   dispose(): void {
     this.group.removeFromParent();
 
-    const geometries = new Set<THREE.BufferGeometry>();
-    const materials = new Set<THREE.Material>();
-    this.group.traverse((object) => {
-      if (object instanceof THREE.Mesh) {
-        geometries.add(object.geometry);
-        this.collectMaterials(object.material, materials);
-      }
-    });
-    for (const geometry of geometries) geometry.dispose();
-    for (const material of materials) material.dispose();
+    disposeObjectTree(this.group);
 
     for (const rigidBody of this.rigidBodies) {
       this.world.removeRigidBody(rigidBody);
@@ -85,6 +76,7 @@ export class Environment {
       color: FLOOR.COLOR,
       roughness: FLOOR.ROUGHNESS,
       metalness: FLOOR.METALNESS,
+      envMapIntensity: 0.18,
     });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = 'EnvironmentFloor';
@@ -102,25 +94,11 @@ export class Environment {
     this.rigidBodies.push(rigidBody);
   }
 
-  /** Builds a subtle ground reference grid for player scale and orientation. */
-  private buildGrid(): void {
-    const { GRID } = ENVIRONMENT_CONFIG;
-    const grid = new THREE.GridHelper(
-      GRID.SIZE,
-      GRID.DIVISIONS,
-      GRID.COLOR,
-      GRID.COLOR,
-    );
-    const material = grid.material as THREE.LineBasicMaterial;
-    material.opacity = GRID.OPACITY;
-    material.transparent = true;
-    grid.name = 'EnvironmentGrid';
-    this.group.add(grid);
-  }
-
   /** Builds configured box props and matching fixed physics colliders. */
   private buildBoxProps(): void {
     const { BOX_PROPS } = ENVIRONMENT_CONFIG;
+    if (BOX_PROPS.POSITIONS.length === 0) return;
+
     const geometry = new THREE.BoxGeometry(...BOX_PROPS.GEOMETRY);
     const material = new THREE.MeshStandardMaterial({
       color: BOX_PROPS.COLOR,
@@ -144,23 +122,5 @@ export class Environment {
       );
       this.rigidBodies.push(rigidBody);
     }
-  }
-
-  /**
-   * Collects either a single material or a material array produced by a mesh.
-   *
-   * @param material - Material instance or material array from a Three.js mesh.
-   * @param target - Set that receives unique material instances.
-   */
-  private collectMaterials(
-    material: THREE.Material | THREE.Material[],
-    target: Set<THREE.Material>,
-  ): void {
-    if (Array.isArray(material)) {
-      for (const item of material) target.add(item);
-      return;
-    }
-
-    target.add(material);
   }
 }

@@ -23,9 +23,10 @@ export const CYCLE_CONFIG = {
 export const SUN_CONFIG = {
   SHADOW_MAP_SIZE: 4096, // Increased for AAA realism
   SHADOW_NEAR: 0.5,
-  SHADOW_FAR: 500,
+  SHADOW_FAR: 720,
   SHADOW_BIAS: -0.0005, // Tuned to reduce peter-panning
-  SHADOW_CAMERA_EXTENT: 70, // Wider area for shadows
+  SHADOW_NORMAL_BIAS: 0.018,
+  SHADOW_CAMERA_EXTENT: 260, // Covers the hero tower and foreground plaza
   /** Orbital radius (distance from scene centre) */
   ORBIT_RADIUS: 400,
   COLOR_DAY: 0xfff1d6,    // Warm balanced daylight; avoids washed-out noon whites

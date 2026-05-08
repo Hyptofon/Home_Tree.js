@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 
 import { ModelLoader } from '../loaders/ModelLoader.ts';
+import { disposeObjectTree } from '../shared/three/dispose.ts';
 import type { AnimationName } from '../types/animations.ts';
 import { PlayerAnimator } from './PlayerAnimator.ts';
 import { PlayerCamera } from './PlayerCamera.ts';
@@ -111,17 +112,7 @@ export class Player {
     this.animator?.dispose();
     this.controller?.dispose();
 
-    const geometries = new Set<THREE.BufferGeometry>();
-    const materials = new Set<THREE.Material>();
-    this.root.traverse((object) => {
-      if (object instanceof THREE.Mesh) {
-        geometries.add(object.geometry);
-        this.collectMaterials(object.material, materials);
-      }
-    });
-    for (const geometry of geometries) geometry.dispose();
-    for (const material of materials) material.dispose();
-
+    disposeObjectTree(this.root);
     this.root.clear();
   }
 
@@ -154,21 +145,4 @@ export class Player {
     });
   }
 
-  /**
-   * Collects either a single material or an array from a mesh.
-   *
-   * @param material - Mesh material or material array.
-   * @param target - Set that receives unique material instances.
-   */
-  private collectMaterials(
-    material: THREE.Material | THREE.Material[],
-    target: Set<THREE.Material>,
-  ): void {
-    if (Array.isArray(material)) {
-      for (const item of material) target.add(item);
-      return;
-    }
-
-    target.add(material);
-  }
 }
