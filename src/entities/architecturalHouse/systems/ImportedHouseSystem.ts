@@ -4,8 +4,8 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import type { AssetStreamingScheduler } from '../../../core/AssetStreamingScheduler.ts';
 import { ModelLoader } from '../../../loaders/ModelLoader.ts';
 import { disposeObjectTree } from '../../../shared/three/dispose.ts';
-import { HOUSE_CONFIG } from '../architecturalHouseConfig.ts';
-import type { DoorInteraction } from '../types.ts';
+import { HOUSE_CONFIG, HOUSE_EDITABLE_ZONES } from '../architecturalHouseConfig.ts';
+import type { DoorInteraction, WallSurface } from '../types.ts';
 import type { Disposable } from '../../../types/interfaces.ts';
 
 const HOUSE_MODEL_PATH = '/models/imported_house/house.gltf';
@@ -92,6 +92,7 @@ type ImportedHouseSystemOptions = {
  */
 export class ImportedHouseSystem implements Disposable {
   public readonly doors: DoorInteraction[] = [];
+  public readonly editableSurfaces: WallSurface[] = [];
   private readonly world: RAPIER.World;
   private readonly root = new THREE.Group();
   private readonly scheduler: AssetStreamingScheduler;
@@ -207,6 +208,18 @@ export class ImportedHouseSystem implements Disposable {
         child.material = mat;
       }
       // meshes not in the map keep their embedded material
+      
+      // Check if it belongs to an editable zone
+      for (const zone of HOUSE_EDITABLE_ZONES) {
+        if (zone.meshKeywords.some((keyword) => child.name.includes(keyword))) {
+          child.userData['zoneId'] = zone.id;
+          this.editableSurfaces.push({
+            mesh: child,
+            zoneId: zone.id,
+          });
+          break; // Assign to first matching zone
+        }
+      }
     });
   }
 

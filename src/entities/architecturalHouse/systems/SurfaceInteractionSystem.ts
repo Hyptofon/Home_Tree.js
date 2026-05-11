@@ -1,22 +1,21 @@
 import * as THREE from 'three';
 
 import { InputManager } from '../../../core/InputManager.ts';
-import type { DoorInteraction, RoomId, WallSurface } from '../types.ts';
+import type { DoorInteraction, ZoneId, WallSurface } from '../types.ts';
 
-type WallInteractionOptions = {
+type SurfaceInteractionOptions = {
   readonly canvas: HTMLCanvasElement;
   readonly scene: THREE.Scene;
   readonly camera: THREE.Camera;
-  readonly wallSurfaces: readonly WallSurface[];
+  readonly interactableSurfaces: readonly WallSurface[];
   readonly doors: readonly DoorInteraction[];
-  readonly onWallClick: (roomId: RoomId) => void;
   readonly onDoorClick: (object: THREE.Object3D) => boolean;
 };
 
 const LOCKED_RAYCAST_INTERVAL_SECONDS = 0.08;
 
 /** Raycaster-backed hover and click interactions for walls and doors. */
-export class WallInteractionSystem {
+export class SurfaceInteractionSystem {
   private readonly canvas: HTMLCanvasElement;
   private readonly camera: THREE.Camera;
   private readonly raycaster = new THREE.Raycaster();
@@ -25,7 +24,6 @@ export class WallInteractionSystem {
   private readonly intersections: THREE.Intersection[] = [];
   private readonly input = InputManager.instance;
   private readonly outline: THREE.BoxHelper;
-  private readonly onWallClick: (roomId: RoomId) => void;
   private readonly onDoorClick: (object: THREE.Object3D) => boolean;
 
   private hovered: THREE.Object3D | null = null;
@@ -36,13 +34,12 @@ export class WallInteractionSystem {
   /**
    * @param options - Raycasting dependencies and callbacks.
    */
-  constructor(options: WallInteractionOptions) {
+  constructor(options: SurfaceInteractionOptions) {
     this.canvas = options.canvas;
     this.camera = options.camera;
-    this.onWallClick = options.onWallClick;
     this.onDoorClick = options.onDoorClick;
     this.intersectables = [
-      ...options.wallSurfaces.map((surface) => surface.mesh),
+      ...options.interactableSurfaces.map((surface) => surface.mesh),
       ...options.doors.map((door) => door.mesh),
     ];
 
@@ -64,6 +61,13 @@ export class WallInteractionSystem {
   registerDoors(newDoors: readonly DoorInteraction[]): void {
     for (const door of newDoors) {
       this.intersectables.push(door.mesh);
+    }
+  }
+
+  /** Dynamically registers interactable surfaces after initialization. */
+  registerSurfaces(newSurfaces: readonly WallSurface[]): void {
+    for (const surface of newSurfaces) {
+      this.intersectables.push(surface.mesh);
     }
   }
 
@@ -139,12 +143,6 @@ export class WallInteractionSystem {
     if (this.onDoorClick(this.hovered)) {
       this.suppressCanvasClick(event);
       return;
-    }
-
-    const roomId = this.hovered.userData['roomId'];
-    if (typeof roomId === 'string') {
-      this.suppressCanvasClick(event);
-      this.onWallClick(roomId);
     }
   };
 

@@ -2,7 +2,7 @@ import type * as THREE from 'three';
 import type { Vector3Tuple } from 'three';
 
 /** Stable identifier for an architectural zone. */
-export type RoomId = string;
+export type ZoneId = string;
 
 /** Stable identifier for a wallpaper/material variant. */
 export type WallpaperId = string;
@@ -10,25 +10,19 @@ export type WallpaperId = string;
 /** Axis used by long wall and railing segments. */
 export type SegmentAxis = 'x' | 'z';
 
-/** World-space room rectangle on a specific floor. */
-export type RoomDefinition = {
-  readonly id: RoomId;
+/** A logical zone grouping architectural meshes for material customization. */
+export type MaterialZoneDefinition = {
+  readonly id: ZoneId;
   readonly label: string;
-  readonly floor: 0 | 1;
-  readonly bounds: {
-    readonly minX: number;
-    readonly maxX: number;
-    readonly minZ: number;
-    readonly maxZ: number;
-  };
-  readonly defaultWallpaper: WallpaperId;
-  readonly wallpaperIds: readonly WallpaperId[];
+  readonly defaultMaterial: string;
+  readonly materialIds: readonly string[];
+  readonly meshKeywords: readonly string[];
 };
 
 /** Mesh metadata required for wall hover/click interaction. */
 export type WallSurface = {
   readonly mesh: THREE.Mesh;
-  readonly roomId: RoomId;
+  readonly zoneId: ZoneId;
 };
 
 /** Door object animated by the door interaction controller. */

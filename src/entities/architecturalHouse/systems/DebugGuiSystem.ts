@@ -2,15 +2,15 @@ import * as THREE from 'three';
 import GUI from 'lil-gui';
 
 import type { DayNightCycle } from '../../../systems/dayNight/index.ts';
-import { HOUSE_TEXTURES } from '../architecturalHouseConfig.ts';
-import { RoomMaterialController } from '../materials/RoomMaterialController.ts';
-import type { HouseDebugApi, WallpaperId } from '../types.ts';
+import { HOUSE_EDITABLE_ZONES } from '../architecturalHouseConfig.ts';
+import { ZoneMaterialController } from '../materials/ZoneMaterialController.ts';
+import type { HouseDebugApi } from '../types.ts';
 
 type DebugGuiOptions = {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene: THREE.Scene;
   readonly dayNight: DayNightCycle;
-  readonly materialController: RoomMaterialController;
+  readonly materialController: ZoneMaterialController;
   readonly houseApi: HouseDebugApi;
 };
 
@@ -26,8 +26,8 @@ export class DebugGuiSystem {
     dust: boolean;
     firstFloor: boolean;
     secondFloor: boolean;
-    globalWallpaper: WallpaperId;
   };
+  private readonly zoneParams: Record<string, string> = {};
 
   /**
    * @param options - Runtime systems controlled by the debug panel.
@@ -44,7 +44,6 @@ export class DebugGuiSystem {
       dust: true,
       firstFloor: true,
       secondFloor: true,
-      globalWallpaper: 'linenWarm',
     };
 
     this.buildRenderingFolder(options);
@@ -129,17 +128,28 @@ export class DebugGuiSystem {
     folder.add({ PlayIntro: () => houseApi.playIntroTour() }, 'PlayIntro').name('Play intro');
   }
 
-  private buildMaterialFolder(materialController: RoomMaterialController): void {
+  private buildMaterialFolder(materialController: ZoneMaterialController): void {
     const folder = this.gui.addFolder('Materials');
-    const wallpaperLabels = Object.fromEntries(
-      Object.entries(HOUSE_TEXTURES.wallpapers).map(([id, definition]) => [definition.label, id]),
-    ) as Record<string, WallpaperId>;
-
-    folder
-      .add(this.params, 'globalWallpaper', wallpaperLabels)
-      .name('Global wallpaper')
-      .onChange((value: WallpaperId) => {
-        materialController.applyWallpaperEverywhere(value);
-      });
+    
+    for (const zone of HOUSE_EDITABLE_ZONES) {
+      const options = materialController.getMaterialOptions(zone.id);
+      
+      // Create an object map { "Label": "id" } for lil-gui dropdown
+      const dropdownMap: Record<string, string> = {};
+      for (const opt of options) {
+        dropdownMap[opt.label] = opt.id;
+      }
+      
+      // Initialize parameter with the active material
+      this.zoneParams[zone.id] = materialController.getActiveMaterial(zone.id);
+      
+      folder
+        .add(this.zoneParams, zone.id, dropdownMap)
+        .name(zone.label)
+        .onChange((value: string) => {
+          materialController.applyMaterial(zone.id, value);
+        });
+    }
   }
+
 }

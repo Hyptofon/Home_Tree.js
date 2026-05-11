@@ -7,7 +7,6 @@ import {
 import { runBatched } from '../../../shared/async.ts';
 import type {
   PbrTextureSet,
-  WallpaperId,
   WallpaperOption,
 } from '../types.ts';
 
@@ -61,13 +60,14 @@ export class HouseMaterialFactory {
   }
 
   /**
-   * Creates a new material instance for an individual wall mesh.
+   * Creates a new material instance for an individual zone mesh.
    *
-   * @param wallpaperId - Wallpaper material id from config.
+   * @param materialId - Material id from config.
    * @param name - Debug name for the cloned material.
    */
-  createWallpaperMaterial(wallpaperId: WallpaperId, name: string): THREE.MeshStandardMaterial {
-    const source = this.getBaseMaterial(`wallpaper:${wallpaperId}`);
+  createZoneMaterial(materialId: string, name: string): THREE.MeshStandardMaterial {
+    const isWallpaper = materialId in HOUSE_TEXTURES.wallpapers;
+    const source = this.getBaseMaterial(isWallpaper ? `wallpaper:${materialId}` : `surface:${materialId}`);
     const material = source.clone();
     material.name = name;
     return material;
@@ -129,11 +129,17 @@ export class HouseMaterialFactory {
   /**
    * Returns UI data for the material picker.
    *
-   * @param ids - Wallpaper ids allowed in a room.
+   * @param ids - Material ids allowed in a zone.
    */
-  getWallpaperOptions(ids: readonly WallpaperId[]): WallpaperOption[] {
+  getMaterialOptions(ids: readonly string[]): WallpaperOption[] {
     return ids.map((id) => {
-      const definition = this.getWallpaperDefinition(id);
+      const isWallpaper = id in HOUSE_TEXTURES.wallpapers;
+      const definition = isWallpaper 
+        ? HOUSE_TEXTURES.wallpapers[id as keyof typeof HOUSE_TEXTURES.wallpapers]
+        : HOUSE_TEXTURES.surfaces[id as keyof typeof HOUSE_TEXTURES.surfaces];
+      
+      if (!definition) throw new Error(`Unknown material: ${id}`);
+        
       return {
         id,
         label: definition.label,
@@ -272,15 +278,6 @@ export class HouseMaterialFactory {
     }
 
     return material;
-  }
-
-  private getWallpaperDefinition(id: WallpaperId): (typeof HOUSE_TEXTURES.wallpapers)[keyof typeof HOUSE_TEXTURES.wallpapers] {
-    const definition = HOUSE_TEXTURES.wallpapers[id as keyof typeof HOUSE_TEXTURES.wallpapers];
-    if (!definition) {
-      throw new Error(`Unknown wallpaper: ${id}`);
-    }
-
-    return definition;
   }
 
   private createFallbackTexture(role: TextureRole): THREE.Texture {

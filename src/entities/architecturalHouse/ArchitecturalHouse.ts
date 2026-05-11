@@ -9,7 +9,7 @@ import type { DayNightCycle } from '../../systems/dayNight/index.ts';
 import type { Disposable, Updatable } from '../../types/interfaces.ts';
 import { FurnishingSystem } from './assets/FurnishingSystem.ts';
 import { HouseMaterialFactory } from './materials/HouseMaterialFactory.ts';
-import { RoomMaterialController } from './materials/RoomMaterialController.ts';
+import { ZoneMaterialController } from './materials/ZoneMaterialController.ts';
 import { CinematicTourSystem } from './systems/CinematicTourSystem.ts';
 import { DebugGuiSystem } from './systems/DebugGuiSystem.ts';
 import { DoorAnimationSystem } from './systems/DoorAnimationSystem.ts';
@@ -18,12 +18,10 @@ import { HouseLightingSystem } from './systems/HouseLightingSystem.ts';
 import { ImportedHouseSystem } from './systems/ImportedHouseSystem.ts';
 import { OutdoorEstateSystem } from './systems/OutdoorEstateSystem.ts';
 import { SignageSystem } from './systems/SignageSystem.ts';
-import { WallInteractionSystem } from './systems/WallInteractionSystem.ts';
-import { RoomMaterialPanel } from './ui/RoomMaterialPanel.ts';
+import { SurfaceInteractionSystem } from './systems/SurfaceInteractionSystem.ts';
 import type {
   HouseDebugApi,
-  RoomId,
-  WallpaperId,
+  ZoneId,
 } from './types.ts';
 import { HOUSE_CONFIG } from './architecturalHouseConfig.ts';
 
@@ -45,22 +43,21 @@ export class ArchitecturalHouse implements Updatable, Disposable {
 
   private readonly options: ArchitecturalHouseOptions;
   private readonly materials: HouseMaterialFactory;
-  private materialController!: RoomMaterialController;
-  private materialPanel!: RoomMaterialPanel;
+  private materialController!: ZoneMaterialController;
   private furnishingSystem!: FurnishingSystem;
   private lightingSystem!: HouseLightingSystem;
   private dustSystem!: DustParticleSystem;
   private outdoorEstateSystem!: OutdoorEstateSystem;
   private importedHouseSystem!: ImportedHouseSystem;
   private doorSystem!: DoorAnimationSystem;
-  private interactionSystem!: WallInteractionSystem;
+  private interactionSystem!: SurfaceInteractionSystem;
   private signageSystem!: SignageSystem;
   private debugGui!: DebugGuiSystem;
   private tourSystem!: CinematicTourSystem;
   private structureRigidBodies: readonly RAPIER.RigidBody[] = [];
   private firstFloorRoot!: THREE.Group;
   private secondFloorRoot!: THREE.Group;
-  private activeRoomId: RoomId | null = null;
+  private activeZoneId: ZoneId | null = null;
   private importedAssetsStarted = false;
   private loaded = false;
   private disposed = false;
@@ -126,17 +123,15 @@ export class ArchitecturalHouse implements Updatable, Disposable {
     this.lightingSystem = new HouseLightingSystem(structureRoot);
     this.dustSystem = new DustParticleSystem(structureRoot);
 
-    // ── Door & wall interaction (empty surfaces since we have no procedural walls) ─
+    // ── Door & wall interaction ───────────────────────────────────────────────
     this.doorSystem = new DoorAnimationSystem([]);
-    this.materialController = new RoomMaterialController(this.materials, []);
-    this.materialPanel = new RoomMaterialPanel({ onSelect: this.handleWallpaperSelect });
-    this.interactionSystem = new WallInteractionSystem({
+    this.materialController = new ZoneMaterialController(this.materials, []);
+    this.interactionSystem = new SurfaceInteractionSystem({
       canvas: this.options.canvas,
       scene: this.options.scene,
       camera: this.options.camera,
-      wallSurfaces: [],
+      interactableSurfaces: [],
       doors: [],
-      onWallClick: this.openMaterialPanel,
       onDoorClick: this.doorSystem.toggleFromObject.bind(this.doorSystem),
     });
 
@@ -186,7 +181,6 @@ export class ArchitecturalHouse implements Updatable, Disposable {
     this.importedAssetsStarted = false;
     this.debugGui?.dispose();
     this.interactionSystem?.dispose();
-    this.materialPanel?.dispose();
     this.furnishingSystem?.dispose();
     this.signageSystem?.dispose();
     this.outdoorEstateSystem?.dispose();
@@ -205,22 +199,6 @@ export class ArchitecturalHouse implements Updatable, Disposable {
     this.materials.dispose();
     this.loaded = false;
   }
-
-  private readonly openMaterialPanel = (roomId: RoomId): void => {
-    this.activeRoomId = roomId;
-    const room = this.materialController.getRoom(roomId);
-    this.materialPanel.show(
-      room,
-      this.materialController.getWallpaperOptions(roomId),
-      this.materialController.getActiveWallpaper(roomId),
-    );
-  };
-
-  private readonly handleWallpaperSelect = (wallpaperId: WallpaperId): void => {
-    if (!this.activeRoomId) return;
-
-    this.materialController.applyWallpaper(this.activeRoomId, wallpaperId);
-  };
 
   private createDebugApi(): HouseDebugApi {
     return {
@@ -252,8 +230,12 @@ export class ArchitecturalHouse implements Updatable, Disposable {
       const streams = await Promise.allSettled([
         this.importedHouseSystem.load().then(() => {
           const doors = this.importedHouseSystem.doors;
+          const surfaces = this.importedHouseSystem.editableSurfaces;
           this.doorSystem.registerDoors(doors);
           this.interactionSystem.registerDoors(doors);
+          // We intentionally do NOT register surfaces for hover interaction
+          // as material swapping is now handled by the lil-gui menu.
+          this.materialController.registerSurfaces(surfaces);
         }),
         this.outdoorEstateSystem.load(),
         // FurnishingSystem and SignageSystem are scoped to the old procedural
