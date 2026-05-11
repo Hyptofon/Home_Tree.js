@@ -290,14 +290,14 @@ export const HOUSE_MODEL_PLACEMENTS = [
   { name: 'CurtainsLiving', path: '/models/decor/curtains.glb', position: [-9.0, 0.02, -10.88] as Vector3Tuple, rotationY: 0, fit: { width: 2.2, depth: 0.16, height: 2.45 } },
 ] as const;
 
-/** Performance-oriented defaults used by model integration. */
+/** Quality-maxed defaults for 2K rendering. */
 export const HOUSE_RENDERING_CONFIG = {
-  TEXTURE_ANISOTROPY: 4,
-  PRELOAD_TEXTURE_BATCH_SIZE: 6,
-  USE_HEIGHT_MAPS: false,
-  MODEL_ENV_INTENSITY: 0.72,
-  MODEL_OPAQUE_ROUGHNESS_MIN: 0.42,
-  MODEL_CAST_SHADOWS: false,
+  TEXTURE_ANISOTROPY: 8,          // Maximum anisotropic filtering — crisp textures at glancing angles
+  PRELOAD_TEXTURE_BATCH_SIZE: 8,   // Slightly larger batches, textures already preloaded
+  USE_HEIGHT_MAPS: true,           // Parallax height for tactile surface depth
+  MODEL_ENV_INTENSITY: 0.88,       // Stronger HDRI reflection on PBR surfaces
+  MODEL_OPAQUE_ROUGHNESS_MIN: 0.38,
+  MODEL_CAST_SHADOWS: false,      // House receives sun shadows but doesn't cast — saves entire shadow pass
   LOD_PROXY_DISTANCE: 34,
-  MAX_SHADOWED_INTERIOR_LIGHTS: 1,
+  MAX_SHADOWED_INTERIOR_LIGHTS: 2, // Allow two shadow-casting interior lights
 } as const;

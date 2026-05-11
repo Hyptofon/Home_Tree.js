@@ -13,7 +13,7 @@ import { ZoneMaterialController } from './materials/ZoneMaterialController.ts';
 import { CinematicTourSystem } from './systems/CinematicTourSystem.ts';
 import { DebugGuiSystem } from './systems/DebugGuiSystem.ts';
 import { DoorAnimationSystem } from './systems/DoorAnimationSystem.ts';
-import { DustParticleSystem } from './systems/DustParticleSystem.ts';
+
 import { HouseLightingSystem } from './systems/HouseLightingSystem.ts';
 import { ImportedHouseSystem } from './systems/ImportedHouseSystem.ts';
 import { OutdoorEstateSystem } from './systems/OutdoorEstateSystem.ts';
@@ -45,7 +45,7 @@ export class ArchitecturalHouse implements Updatable, Disposable {
   private materialController!: ZoneMaterialController;
   private furnishingSystem!: FurnishingSystem;
   private lightingSystem!: HouseLightingSystem;
-  private dustSystem!: DustParticleSystem;
+
   private outdoorEstateSystem!: OutdoorEstateSystem;
   private importedHouseSystem!: ImportedHouseSystem;
   private doorSystem!: DoorAnimationSystem;
@@ -119,7 +119,7 @@ export class ArchitecturalHouse implements Updatable, Disposable {
     );
     this.signageSystem = new SignageSystem(this.materials, this.options.assetScheduler);
     this.lightingSystem = new HouseLightingSystem(structureRoot);
-    this.dustSystem = new DustParticleSystem(structureRoot);
+
 
     // ── Door & wall interaction ───────────────────────────────────────────────
     this.doorSystem = new DoorAnimationSystem([]);
@@ -169,7 +169,7 @@ export class ArchitecturalHouse implements Updatable, Disposable {
     this.interactionSystem.update(delta);
     this.lightingSystem.update(this.options.dayNight.getTimeOfDay());
     this.outdoorEstateSystem.update(delta, this.options.dayNight.getTimeOfDay());
-    this.dustSystem.update(delta);
+
     this.tourSystem.update(delta);
   }
 
@@ -183,7 +183,7 @@ export class ArchitecturalHouse implements Updatable, Disposable {
     this.signageSystem?.dispose();
     this.outdoorEstateSystem?.dispose();
     this.importedHouseSystem?.dispose();
-    this.dustSystem?.dispose();
+
     this.lightingSystem?.dispose();
     this.materialController?.dispose();
 
@@ -203,9 +203,7 @@ export class ArchitecturalHouse implements Updatable, Disposable {
       setInteriorLightIntensity: (value: number) => {
         this.lightingSystem.setIntensityMultiplier(value);
       },
-      setDustVisible: (value: boolean) => {
-        this.dustSystem.setVisible(value);
-      },
+
       setFirstFloorVisible: (value: boolean) => {
         this.firstFloorRoot.visible = value;
       },

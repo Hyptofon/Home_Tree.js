@@ -9,17 +9,17 @@ export const GAME_LOOP_CONFIG = {
   MAX_DELTA_SECONDS: 0.05,
 } as const;
 
-/** Renderer defaults tuned for stable cinematic quality on common displays. */
+/** Renderer defaults tuned for 90 FPS at 2K quality on capable hardware. */
 export const RENDERER_CONFIG = {
-  ANTIALIAS: false, // Disabled: SMAA is more efficient than MSAA with EffectComposer
-  INITIAL_PIXEL_RATIO: 1.5, // Increased from 1.0 for crisper starting graphics
-  MIN_PIXEL_RATIO: 0.8, // Allow down to 0.8x for very weak GPUs
-  MAX_PIXEL_RATIO: 2.0, // Increased from 1.2 for high-end displays
+  ANTIALIAS: false,          // Disabled: SMAA ULTRA handles AA at the composer level
+  INITIAL_PIXEL_RATIO: 2.0,  // Start at 2K quality immediately
+  MIN_PIXEL_RATIO: 1.0,      // Drop to 1.0 only under heavy load
+  MAX_PIXEL_RATIO: 2.5,      // Allow 2.5x on hi-DPI displays (4K monitors)
   PIXEL_RATIO_STEP: 0.1,
-  QUALITY_SAMPLE_SECONDS: 0.5, // Faster adaptation: respond quicker to frame drops
-  TARGET_FRAME_MS: 16.7,
-  DOWNGRADE_FRAME_MS: 17.5, // Tighter threshold (approx 57 FPS) to maintain stability
-  UPGRADE_FRAME_MS: 14.5, // Tighter threshold (approx 69 FPS) for quicker quality bumps
+  QUALITY_SAMPLE_SECONDS: 0.4,  // Fast adaptation
+  TARGET_FRAME_MS: 11.1,        // 90 FPS target
+  DOWNGRADE_FRAME_MS: 12.5,     // Drop quality if frame > ~80 FPS threshold
+  UPGRADE_FRAME_MS: 10.0,       // Raise quality if frame < ~100 FPS
   TONE_MAPPING_EXPOSURE: 0.55,
 } as const;
 

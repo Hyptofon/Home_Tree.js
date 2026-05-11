@@ -82,7 +82,7 @@ export type ModelPlacement = {
 /** Public controls exposed to debug UI without coupling it to implementation. */
 export type HouseDebugApi = {
   setInteriorLightIntensity(value: number): void;
-  setDustVisible(value: boolean): void;
+
   setFirstFloorVisible(value: boolean): void;
   setSecondFloorVisible(value: boolean): void;
   playIntroTour(): void;

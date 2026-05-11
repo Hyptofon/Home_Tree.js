@@ -20,6 +20,7 @@ import {
 import {
   AdaptiveQualitySystem,
   EnvironmentMapSystem,
+  FrameBudgetMonitor,
 } from './systems/rendering/index.ts';
 import { ProjectMenuPanel } from './ui/projectMenu/ProjectMenuPanel.ts';
 import { TimeControlPanel } from './ui/timeControls/TimeControlPanel.ts';
@@ -63,6 +64,7 @@ async function bootstrap(): Promise<void> {
     sceneManager.camera,
   );
   const adaptiveQuality = new AdaptiveQualitySystem(sceneManager.renderer, postFx);
+  const perfMonitor = FrameBudgetMonitor.create(sceneManager.renderer);
 
   const dayNight = new DayNightCycle(
     sceneManager.scene,
@@ -115,7 +117,7 @@ async function bootstrap(): Promise<void> {
     ],
   });
 
-  loop.register(
+  const loopSystems: Parameters<typeof loop.register> = [
     physics,
     player,
     architecturalHouse,
@@ -123,7 +125,9 @@ async function bootstrap(): Promise<void> {
     adaptiveQuality,
     dayNight,
     timeControls,
-  );
+  ];
+  if (perfMonitor) loopSystems.push(perfMonitor);
+  loop.register(...loopSystems);
   loop.start();
   void streamEnvironmentMap(environmentMap);
 

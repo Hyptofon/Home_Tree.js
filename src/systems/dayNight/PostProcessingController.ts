@@ -40,20 +40,20 @@ export class PostProcessingController {
     camera: THREE.Camera,
   ) {
     this.renderer = renderer;
-    this.composer = new EffectComposer(renderer);
+    this.composer = new EffectComposer(renderer, {
+      multisampling: 4,
+      frameBufferType: THREE.HalfFloatType,
+    } as ConstructorParameters<typeof EffectComposer>[1]);
     this.composer.addPass(new RenderPass(scene, camera));
 
-    // SMAA: Subpixel Morphological Antialiasing
-    // Much more efficient than MSAA when using EffectComposer:
-    // analyzes only object edges and smooths them without reducing sharpness.
     this.smaa = new SMAAEffect({
       preset: SMAAPreset.HIGH,
     });
 
     this.bloom = new BloomEffect({
-      intensity: 0.015, // Reduced from 0.025: subtle bloom saves GPU
-      luminanceThreshold: 1.35, // Increased from 1.28: fewer bright pixels processed
-      luminanceSmoothing: 0.04,
+      intensity: 0.012,
+      luminanceThreshold: 1.4,
+      luminanceSmoothing: 0.03,
       mipmapBlur: true,
     });
 

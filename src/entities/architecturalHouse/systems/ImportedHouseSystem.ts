@@ -267,7 +267,10 @@ export class ImportedHouseSystem implements Disposable {
   private enableShadows(model: THREE.Group): void {
     model.traverse((child) => {
       if (child instanceof THREE.Mesh) {
-        child.castShadow = true;
+        // House receives shadows from the sun but does NOT cast them.
+        // Casting shadows means rendering the entire house geometry a second time
+        // into the shadow map, doubling triangle count per frame.
+        child.castShadow = false;
         child.receiveShadow = true;
       }
     });

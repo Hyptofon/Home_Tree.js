@@ -107,12 +107,7 @@ export class DebugGuiSystem {
       .onChange((value: number) => {
         houseApi.setInteriorLightIntensity(value);
       });
-    folder
-      .add(this.params, 'dust')
-      .name('Dust motes')
-      .onChange((value: boolean) => {
-        houseApi.setDustVisible(value);
-      });
+
     folder
       .add(this.params, 'firstFloor')
       .name('First floor')

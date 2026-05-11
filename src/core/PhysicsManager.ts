@@ -2,6 +2,9 @@ import RAPIER from '@dimforge/rapier3d-compat';
 
 import { PHYSICS_CONFIG } from './coreConfig.ts';
 
+/** Physics runs at a fixed 60 Hz regardless of the render frame rate. */
+const PHYSICS_FIXED_STEP = 1 / 60;
+
 /**
  * Wraps the Rapier physics world lifecycle.
  *
@@ -18,6 +21,9 @@ export class PhysicsManager {
    */
   public world!: RAPIER.World;
 
+  /** Accumulates unprocessed render-frame time for the fixed-step integrator. */
+  private accumulator = 0;
+
   /**
    * Initializes Rapier WASM and creates the simulation world.
    *
@@ -29,18 +35,21 @@ export class PhysicsManager {
   }
 
   /**
-   * Steps the physics simulation by the frame delta.
+   * Steps the physics at a fixed 60 Hz budget, regardless of render FPS.
    *
-   * @param delta - Frame delta in seconds.
+   * On 90+ FPS displays Rapier was being called 90+ times/sec which wasted
+   * CPU. The accumulator guarantees ≤ one step per render frame.
+   *
+   * @param delta - Render frame delta in seconds.
    */
   update(delta: number): void {
     if (!this.world) return;
-
-    // OPTIMIZATION: Cap physics timestep to prevent spiral of death
-    // and allow sub-stepping for stability without performance cost
-    const clampedDelta = Math.min(delta, 1/30); // Max 30 FPS physics
-    this.world.timestep = clampedDelta;
-    this.world.step();
+    this.accumulator += Math.min(delta, 0.05); // clamp prevents spiral-of-death
+    if (this.accumulator >= PHYSICS_FIXED_STEP) {
+      this.accumulator -= PHYSICS_FIXED_STEP;
+      this.world.timestep = PHYSICS_FIXED_STEP;
+      this.world.step();
+    }
   }
 
   /** Releases the Rapier world and its WASM-side allocations. */

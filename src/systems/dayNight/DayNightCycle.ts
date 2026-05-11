@@ -108,6 +108,8 @@ export class DayNightCycle implements Updatable, Disposable {
   private clouds!: CloudSystem;
   private moon!:   MoonSystem;
   private postFxHealthy = true;
+  /** Accumulates time for 30 Hz throttled scene-graph updates. */
+  private throttleAccumulator = 0;
 
   constructor(
     scene:    THREE.Scene,
@@ -183,22 +185,27 @@ export class DayNightCycle implements Updatable, Disposable {
    * @param delta - Frame delta in seconds (capped by GameLoop at 50ms)
    */
   update(delta: number): void {
-    // Advance game time
+    // Advance game time every frame (accurate wall-clock)
     const hoursPerSecond = 24 / this.cycleDurationSeconds;
     this.time      = wrapTime(this.time + delta * hoursPerSecond * this.timeScale);
     this.totalTime += delta;
 
     const [phase, blend] = resolvePhase(this.time);
 
-    this.applyPhaseState(this.time, blend);
-    this.updateSun(this.time);
-    this.stars.update(this.time, this.totalTime);
-    this.moon.update(this.time);
-    this.clouds.update(delta, phase, blend);
+    // Heavy scene-graph updates (sun position, stars, moon, clouds, sky uniforms)
+    // throttled to 30 Hz - these change slowly enough that 30 Hz is indistinguishable from 90 Hz.
+    this.throttleAccumulator += delta;
+    if (this.throttleAccumulator >= 1 / 30) {
+      const td = this.throttleAccumulator;
+      this.throttleAccumulator = 0;
+      this.applyPhaseState(this.time, blend);
+      this.updateSun(this.time);
+      this.stars.update(this.time, this.totalTime);
+      this.moon.update(this.time);
+      this.clouds.update(td, phase, blend);
+    }
 
-    // PostFX: lerp factor 2*delta ensures smooth but responsive transitions.
-    // If the composer fails at runtime, keep rendering directly so UI time and
-    // camera updates do not freeze on a black frame.
+    // PostFX lerp + render runs every frame for smooth exposure/bloom.
     const postTarget = PHASE_DEFINITIONS[phase].postFx;
     if (this.postFxHealthy) {
       try {

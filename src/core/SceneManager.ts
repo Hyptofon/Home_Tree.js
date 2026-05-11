@@ -82,8 +82,10 @@ export class SceneManager {
 
   /** Synchronizes renderer size and camera projection with the browser viewport. */
   private readonly onResize = (): void => {
-    this.camera.aspect = window.innerWidth / window.innerHeight;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setSize(w, h);
   };
 }

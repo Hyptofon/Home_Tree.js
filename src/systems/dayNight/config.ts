@@ -21,22 +21,21 @@ export const CYCLE_CONFIG = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const SUN_CONFIG = {
-  SHADOW_MAP_SIZE: 1024, // Increased from 512 for crisper shadows
+  SHADOW_MAP_SIZE: 1024,       // 2K shadow map — crisp at 2K viewport
   SHADOW_NEAR: 0.5,
-  SHADOW_FAR: 120, // Reduced from 180: tighter bounds for better quality
-  SHADOW_BIAS: -0.0005, // Tuned to reduce peter-panning
-  SHADOW_NORMAL_BIAS: 0.018,
-  SHADOW_CAMERA_EXTENT: 30, // Further tightened for VSMShadowMap optimization
-  /** Orbital radius (distance from scene centre) */
+  SHADOW_FAR: 100,             // Tighter frustum = better depth precision
+  SHADOW_BIAS: -0.0003,        // Fine-tuned for 2K shadow map
+  SHADOW_NORMAL_BIAS: 0.012,
+  SHADOW_CAMERA_EXTENT: 28,    // Tighter frustum covers only what the camera sees
   ORBIT_RADIUS: 400,
-  COLOR_DAY: 0xfff1d6,    // Warm balanced daylight; avoids washed-out noon whites
-  COLOR_SUNSET: 0xff5500, // Deep fiery orange
-  COLOR_SUNRISE: 0xff7733, // Soft peach/orange
+  COLOR_DAY: 0xfff1d6,
+  COLOR_SUNSET: 0xff5500,
+  COLOR_SUNRISE: 0xff7733,
   COLOR_NIGHT: 0x050510,
-  INTENSITY_DAY: 1.25,    // PBR intensity scaling tuned for ACES without noon clipping
+  INTENSITY_DAY: 1.25,
   AMBIENT_INTENSITY_DAY: 0.42,
   AMBIENT_INTENSITY_SUNSET: 0.3,
-  AMBIENT_INTENSITY_NIGHT: 0.15, // Provide enough fill light for character visibility at night
+  AMBIENT_INTENSITY_NIGHT: 0.15,
   INTENSITY_SUNSET: 1.2,
   INTENSITY_SUNRISE: 0.8,
   INTENSITY_NIGHT: 0,

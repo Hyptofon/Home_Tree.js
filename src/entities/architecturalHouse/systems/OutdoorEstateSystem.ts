@@ -68,13 +68,7 @@ type VegetationPlacement = {
   readonly lodDistance: number;
 };
 
-type FlowerClusterPlacement = {
-  readonly path: string;
-  readonly name: string;
-  readonly position: Vector3Tuple;
-  readonly rotationY: number;
-  readonly scale: number;
-};
+
 
 const ROAD_Z = -42;
 const ROAD_LENGTH = 132;
@@ -100,7 +94,7 @@ const TREE_LAYOUT = [
   { position: [22, 0, -30], height: 7.0, canopy: 3.5, color: 0x58794a },
   { position: [-10, 0, 19], height: 6.2, canopy: 2.8, color: 0x6c8452 },
   { position: [10, 0, 19], height: 6.9, canopy: 3.1, color: 0x557449 },
-  
+
   // Back forest
   { position: [-40, 0, 30], height: 8.5, canopy: 4.0, color: 0x4a6b3d },
   { position: [-20, 0, 35], height: 9.2, canopy: 4.5, color: 0x3d5c31 },
@@ -111,7 +105,7 @@ const TREE_LAYOUT = [
   { position: [-10, 0, 42], height: 9.8, canopy: 4.8, color: 0x3d5c31 },
   { position: [15, 0, 48], height: 10.5, canopy: 5.2, color: 0x2e4725 },
   { position: [35, 0, 40], height: 9.0, canopy: 4.4, color: 0x4a6b3d },
-  
+
   // Left forest
   { position: [-35, 0, -20], height: 8.0, canopy: 3.8, color: 0x4a6b3d },
   { position: [-45, 0, -10], height: 9.5, canopy: 4.5, color: 0x3d5c31 },
@@ -121,7 +115,7 @@ const TREE_LAYOUT = [
   { position: [-50, 0, -25], height: 10.0, canopy: 4.8, color: 0x2e4725 },
   { position: [-55, 0, 5], height: 10.5, canopy: 5.0, color: 0x2e4725 },
   { position: [-48, 0, 15], height: 9.8, canopy: 4.6, color: 0x3d5c31 },
-  
+
   // Right forest
   { position: [35, 0, -20], height: 8.2, canopy: 3.9, color: 0x4a6b3d },
   { position: [45, 0, -10], height: 9.0, canopy: 4.4, color: 0x3d5c31 },
@@ -192,22 +186,46 @@ const TRAFFIC_CAR_MODELS: readonly TrafficCarModelConfig[] = [
   },
 ] as const;
 
+// Low-poly trees: 1616 tris / 6 meshes — replaces heavy sketchfab models (~200k tris each).
+// With 45 trees that's only ~73k tris total instead of 9M+.
 const TREE_MODEL_CONFIGS: readonly TreeModelConfig[] = [
-  { path: '/models/sketchfab/trees/mega_tree_models.glb', name: 'MegaTree', scaleMultiplier: 1.0 },
-  { path: '/models/sketchfab/trees/realistic_tree_models_for_games.glb', name: 'RealisticTree', scaleMultiplier: 1.0 },
+  { path: '/models/tree/low_poly_trees_free.glb', name: 'LowPolyTree', scaleMultiplier: 1.0 },
 ] as const;
 
 const SKETCHFAB_PLAYGROUND_MODEL_PATH = '/models/sketchfab/slide_playground.glb';
 const SKETCHFAB_PLAYGROUND_FALLBACK_MODEL_PATH = '/models/sketchfab/kids_playground.glb';
 
-const FLOWER_CLUSTER_PLACEMENTS: readonly FlowerClusterPlacement[] = [
-  { path: '/models/sketchfab/lowpoly_flower_bushes.glb', name: 'FrontFlowerBushA', position: [-7.7, 0.14, -14.42], rotationY: 0.1, scale: 0.58 },
-  { path: '/models/sketchfab/forsythia_bush.glb', name: 'FrontForsythiaA', position: [-6.35, 0.15, -14.35], rotationY: 1.25, scale: 0.72 },
-  { path: '/models/sketchfab/lowpoly_flower_bushes.glb', name: 'FrontFlowerBushB', position: [-5.1, 0.14, -14.48], rotationY: -0.8, scale: 0.5 },
-  { path: '/models/sketchfab/forsythia_bush.glb', name: 'FrontForsythiaB', position: [5.05, 0.15, -14.37], rotationY: -0.4, scale: 0.72 },
-  { path: '/models/sketchfab/lowpoly_flower_bushes.glb', name: 'FrontFlowerBushC', position: [6.55, 0.14, -14.48], rotationY: 0.85, scale: 0.54 },
-  { path: '/models/sketchfab/forsythia_bush.glb', name: 'FrontForsythiaC', position: [7.95, 0.15, -14.36], rotationY: -1.1, scale: 0.68 },
+// ─── Static decorative props ─────────────────────────────────────────────────
+
+/** Garden shed — back-left of the house */
+const SHED_POSITION   = [-20, 0, 14] as const;
+/** Bus station — on the road side, left of the driveway */
+const BUS_STOP_POSITION = [-30, 0, -42] as const;
+
+/** Perimeter garden lights around the estate — activated at night */
+const PERIMETER_LIGHT_POSITIONS: readonly [number, number, number][] = [
+  // Front edge
+  [-24,  0, -34], [-12, 0, -34], [0, 0, -34], [12, 0, -34], [24, 0, -34],
+  // Back edge
+  [-24,  0,  20], [-12, 0,  20], [0, 0,  20], [12, 0,  20], [24, 0,  20],
+  // Left edge
+  [-26,  0, -20], [-26, 0,  -4], [-26, 0,  10],
+  // Right edge
+  [ 26,  0, -20], [ 26, 0,  -4], [ 26, 0,  10],
 ];
+
+/** Picnic area — back-right of the house */
+const PICNIC_TABLE_POSITIONS: readonly { pos: [number,number,number]; rot: number }[] = [
+  { pos: [17, 0,  12], rot: 0 },
+  { pos: [21, 0,  16], rot: Math.PI * 0.5 },
+];
+
+/** Bronze horse statues at the entrance — facing each other */
+const HORSE_STATUES: readonly { pos: [number,number,number]; rot: number }[] = [
+  { pos: [-2.8, 0, -13.5], rot: Math.PI * 0.5  },   // left statue — faces right (+X)
+  { pos: [ 2.8, 0, -13.5], rot: -Math.PI * 0.5 },   // right statue — faces left (-X)
+];
+
 
 /** Builds and animates the exterior estate around the architectural house. */
 export class OutdoorEstateSystem {
@@ -243,6 +261,7 @@ export class OutdoorEstateSystem {
   private readonly movingCars: MovingCar[] = [];
   private trafficInitialized = false;
   private elapsed = 0;
+  private carUpdateAccumulator = 0;
 
   /**
    * @param world - Active Rapier world used for coarse exterior colliders.
@@ -324,7 +343,6 @@ export class OutdoorEstateSystem {
     this.buildFenceColliders();
     this.buildGardenDetails();
     this.registerTreeColliders();
-    this.buildFlowerbeds();
   }
 
   /** Loads imported exterior props that are worth the extra geometry. */
@@ -344,7 +362,7 @@ export class OutdoorEstateSystem {
     await this.loadVegetationAccents();
     await this.loadSketchfabTrees();
     await this.loadSketchfabPlayground();
-    await this.loadImportedFlowerbeds();
+    await this.loadStaticProps();
 
     try {
       await this.scheduler.enqueue('estate:custom-fence', 'background', () => this.loadCustomFence());
@@ -370,7 +388,13 @@ export class OutdoorEstateSystem {
       }
     }
 
-    this.updateCars(delta, nightFactor);
+    // Cars move at ~10 m/s max — 30 Hz is visually identical to 90 Hz for objects
+    // travelling at that speed, and halves the Rapier kinematic update load.
+    this.carUpdateAccumulator += delta;
+    if (this.carUpdateAccumulator >= 1 / 30) {
+      this.updateCars(this.carUpdateAccumulator, nightFactor);
+      this.carUpdateAccumulator = 0;
+    }
   }
 
   /** Removes exterior colliders and GPU resources owned by this system. */
@@ -439,7 +463,7 @@ export class OutdoorEstateSystem {
   private async loadCustomFence(): Promise<void> {
     const source = await this.getModel('/models/sketchfab/fence.glb');
     let fenceMesh: THREE.Mesh | undefined;
-    
+
     source.traverse((child) => {
       if (child instanceof THREE.Mesh && !fenceMesh) {
         fenceMesh = child as THREE.Mesh;
@@ -451,15 +475,15 @@ export class OutdoorEstateSystem {
     fenceMesh.updateMatrixWorld(true);
     const geometry = fenceMesh.geometry.clone();
     geometry.applyMatrix4(fenceMesh.matrixWorld);
-    
+
     geometry.computeBoundingBox();
     const center = geometry.boundingBox!.getCenter(new THREE.Vector3());
     geometry.translate(-center.x, -center.y, -center.z);
-    
+
     const size = geometry.boundingBox!.getSize(new THREE.Vector3());
     const isZAligned = size.z > size.x;
     const length = isZAligned ? size.z : size.x;
-    
+
     const targetLength = 4.0; // 2x bigger (4 meters instead of 2)
     const scaleFactor = length > 0.1 ? targetLength / length : 1.0;
     const rotationOffset = isZAligned ? Math.PI * 0.5 : 0;
@@ -495,11 +519,11 @@ export class OutdoorEstateSystem {
       quaternion.setFromEuler(new THREE.Euler(0, rotationY + rotationOffset, 0));
       matrix.compose(position, quaternion, scale);
       instances.setMatrixAt(panelIndex, matrix);
-      
+
       const proxyScale = new THREE.Vector3(1, 1, 1);
       const proxyMatrix = new THREE.Matrix4().compose(position, new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rotationY, 0)), proxyScale);
       shadowProxies.setMatrixAt(panelIndex, proxyMatrix);
-      
+
       panelIndex += 1;
     };
 
@@ -521,7 +545,7 @@ export class OutdoorEstateSystem {
 
     instances.count = panelIndex;
     shadowProxies.count = panelIndex;
-    
+
     this.root.add(instances, shadowProxies);
   }
 
@@ -548,66 +572,7 @@ export class OutdoorEstateSystem {
   }
 
   private buildGardenDetails(): void {
-    this.buildPond();
-    this.buildFountain();
     this.buildPlayground();
-  }
-
-  private registerTreeColliders(): void {
-    for (const tree of TREE_LAYOUT) {
-      this.addFixedCuboid([tree.position[0], 1.1, tree.position[2]], [0.55, 1.1, 0.55]);
-    }
-  }
-
-  private buildPond(): void {
-    const bank = new THREE.Mesh(
-      new THREE.CylinderGeometry(1, 1, 0.09, 40),
-      this.materials.soil,
-    );
-    bank.name = 'PondBank';
-    bank.position.set(17.1, 0.02, 8.0);
-    bank.scale.set(4.9, 1, 3.3);
-    bank.receiveShadow = true;
-    this.root.add(bank);
-
-    const water = new THREE.Mesh(
-      new THREE.CylinderGeometry(1, 1, 0.045, 48),
-      this.materials.water,
-    );
-    water.name = 'PondWater';
-    water.position.set(17.1, 0.09, 8.0);
-    water.scale.set(4.35, 1, 2.75);
-    water.receiveShadow = true;
-    this.root.add(water);
-  }
-
-  private buildFountain(): void {
-    const stone = this.materials.concrete;
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.55, 0.32, 36), stone);
-    base.name = 'GardenFountainBase';
-    base.position.set(-16.2, 0.16, 10.6);
-    base.castShadow = true;
-    base.receiveShadow = true;
-
-    const basin = new THREE.Mesh(new THREE.TorusGeometry(1.08, 0.14, 10, 36), stone);
-    basin.name = 'GardenFountainBasin';
-    basin.position.set(-16.2, 0.48, 10.6);
-    basin.rotation.x = Math.PI * 0.5;
-    basin.castShadow = true;
-    basin.receiveShadow = true;
-
-    const water = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 0.95, 0.035, 36), this.materials.water);
-    water.name = 'GardenFountainWater';
-    water.position.set(-16.2, 0.5, 10.6);
-
-    const column = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.22, 0.85, 18), stone);
-    column.name = 'GardenFountainColumn';
-    column.position.set(-16.2, 0.9, 10.6);
-    column.castShadow = true;
-    column.receiveShadow = true;
-
-    this.root.add(base, basin, water, column);
-    this.addFixedCuboid([-16.2, 0.32, 10.6], [1.35, 0.32, 1.35]);
   }
 
   private buildPlayground(): void {
@@ -706,9 +671,9 @@ export class OutdoorEstateSystem {
     trunks.name = 'OptimizedTreeTrunks';
     branches.name = 'OptimizedTreeBranches';
     leaves.name = 'OptimizedTreeLeafClusters';
-    trunks.castShadow = true;
+    trunks.castShadow = false; // performance: procedural trees don't cast shadows
     trunks.receiveShadow = true;
-    branches.castShadow = true;
+    branches.castShadow = false;
     branches.receiveShadow = true;
     leaves.castShadow = false;
     leaves.receiveShadow = true;
@@ -720,20 +685,20 @@ export class OutdoorEstateSystem {
     this.root.add(trunks, branches, leaves);
   }
 
-  private buildFlowerbeds(): void {
-    const bedA = this.createBox('FlowerbedFrontLeft', 5.4, 0.18, 1.2, this.materials.soil, [-6.5, 0.09, -14.2]);
-    const bedB = this.createBox('FlowerbedFrontRight', 5.4, 0.18, 1.2, this.materials.soil, [6.5, 0.09, -14.2]);
-    bedA.receiveShadow = true;
-    bedB.receiveShadow = true;
-    this.root.add(bedA, bedB);
+  private registerTreeColliders(): void {
+    for (const tree of TREE_LAYOUT) {
+      this.addFixedCuboid([tree.position[0], 1.1, tree.position[2]], [0.55, 1.1, 0.55]);
+    }
   }
 
   private async loadRoadLamps(): Promise<void> {
-    const source = await this.getModel('/models/exterior/outdoor_lamp.gltf');
+    const source = await this.getModel('/models/exterior/victorian_street_lamp.glb');
 
     for (const item of LAMP_LAYOUT) {
       const model = source.clone(true);
-      this.prepareImportedModel(model, true);
+      // Road lamps: no shadow casting — they are far from the player and tiny.
+      // Shadow maps would cost more GPU than the lamp itself contributes to the scene.
+      this.prepareImportedModel(model, false);
 
       const container = new THREE.Group();
       container.name = `RoadLamp_${item.x}`;
@@ -1030,7 +995,6 @@ export class OutdoorEstateSystem {
           const source = sources[index % sources.length];
           const model = source.model.clone(true);
           model.name = `${source.config.name}Model_${index}`;
-
           const container = new THREE.Group();
           container.name = `${source.config.name}_${index}`;
           container.position.set(tree.position[0], 0.02, tree.position[2]);
@@ -1087,36 +1051,6 @@ export class OutdoorEstateSystem {
     this.root.add(container);
   }
 
-  private async loadImportedFlowerbeds(): Promise<void> {
-    for (const placement of FLOWER_CLUSTER_PLACEMENTS) {
-      await this.scheduler.enqueue(`estate:flowerbed:${placement.name}`, 'idle', async () => {
-        try {
-          const sourcePromise = this.getModel(placement.path).then((source) => {
-            if (!source.userData['estatePrepared']) {
-              this.prepareImportedModel(source, false, true);
-              this.normalizeModel(source, { height: 1 });
-              source.userData['estatePrepared'] = true;
-            }
-            return source;
-          });
-
-          const source = await sourcePromise;
-          const model = source.clone(true);
-          model.name = `${placement.name}Model`;
-
-          const container = new THREE.Group();
-          container.name = placement.name;
-          container.position.set(...placement.position);
-          container.rotation.y = placement.rotationY;
-          container.scale.setScalar(placement.scale);
-          container.add(model);
-          this.root.add(container);
-        } catch (error) {
-          console.warn(`[OutdoorEstateSystem] Flower cluster load failed: ${placement.path}`, error);
-        }
-      });
-    }
-  }
 
   private updateCars(_delta: number, nightFactor: number): void {
     const trackStart = -ROAD_LENGTH / 2 - 7;
@@ -1177,6 +1111,129 @@ export class OutdoorEstateSystem {
     return lights;
   }
 
+  // ─── Static props ─────────────────────────────────────────────────────────
+
+  /**
+   * Loads all decorative static props: shed, bus stop, picnic area,
+   * perimeter lights and entrance horse statues.
+   */
+  private async loadStaticProps(): Promise<void> {
+    // ── 1. Garden shed (back-left) ──────────────────────────────────────────
+    await this.scheduler.enqueue('estate:shed', 'idle', async () => {
+      try {
+        const model = await this.getModel('/Shed/wooden_garden_shed.glb');
+        this.prepareImportedModel(model, false);
+        const container = new THREE.Group();
+        container.name = 'GardenShed';
+        container.position.set(SHED_POSITION[0], SHED_POSITION[1], SHED_POSITION[2]);
+        container.rotation.y = Math.PI * 0.5; // face towards the house
+        this.normalizeModel(model, { width: 5, depth: 4, height: 3 });
+        container.add(model);
+        this.root.add(container);
+      } catch (e) { console.warn('[OutdoorEstateSystem] Shed failed.', e); }
+    });
+
+    // ── 2. Bus station (road side, left of driveway) ────────────────────────
+    await this.scheduler.enqueue('estate:bus-stop', 'idle', async () => {
+      try {
+        const model = await this.getModel('/bus_station/bus_station (1).glb');
+        this.prepareImportedModel(model, false);
+        this.normalizeModel(model, { width: 4, height: 3 });
+        const container = new THREE.Group();
+        container.name = 'BusStation';
+        container.position.set(BUS_STOP_POSITION[0], BUS_STOP_POSITION[1], BUS_STOP_POSITION[2]);
+        container.rotation.y = Math.PI; // faces the road
+        container.add(model);
+        this.root.add(container);
+      } catch (e) { console.warn('[OutdoorEstateSystem] Bus station failed.', e); }
+    });
+
+    // ── 3. Picnic area: fire pit + tables (back-right) ───────────────────────
+    await this.scheduler.enqueue('estate:fire-pit', 'idle', async () => {
+      try {
+        const model = await this.getModel('/picnic_area/game_ready_fire_pit_with_seating.glb');
+        this.prepareImportedModel(model, false);
+        this.normalizeModel(model, { width: 4.5, depth: 4.5, height: 1.4 });
+        const container = new THREE.Group();
+        container.name = 'FirePitSeating';
+        container.position.set(16, 0, 14);
+        container.add(model);
+        this.root.add(container);
+      } catch (e) { console.warn('[OutdoorEstateSystem] Fire pit failed.', e); }
+    });
+
+    await this.scheduler.enqueue('estate:picnic-tables', 'idle', async () => {
+      try {
+        const source = await this.getModel('/picnic_area/picnic_table_low_poly.glb');
+        for (const [index, entry] of PICNIC_TABLE_POSITIONS.entries()) {
+          const model = source.clone(true);
+          this.prepareImportedModel(model, false);
+          this.normalizeModel(model, { width: 2.4, depth: 1.0, height: 0.8 });
+          const container = new THREE.Group();
+          container.name = `PicnicTable_${index}`;
+          container.position.set(...entry.pos);
+          container.rotation.y = entry.rot;
+          container.add(model);
+          this.root.add(container);
+        }
+      } catch (e) { console.warn('[OutdoorEstateSystem] Picnic tables failed.', e); }
+    });
+
+    // ── 4. Perimeter garden lights (night-reactive) ──────────────────────────
+    await this.scheduler.enqueue('estate:perimeter-lights', 'idle', async () => {
+      try {
+        const source = await this.getModel('/outdoor_light/low_poly_garden_lamp_stylized_outdoor_light.glb');
+        for (const [index, pos] of PERIMETER_LIGHT_POSITIONS.entries()) {
+          const model = source.clone(true);
+          this.prepareImportedModel(model, false);
+          this.normalizeModel(model, { height: 1.2 });
+
+          const container = new THREE.Group();
+          container.name = `PerimeterLight_${index}`;
+          container.position.set(pos[0], pos[1], pos[2]);
+          container.add(model);
+          this.root.add(container);
+
+          // Small downward point light — activates at night via estateLights
+          const light = new THREE.PointLight(0xffe8b0, 0, 6, 2.2);
+          light.position.set(pos[0], 1.1, pos[2]);
+          light.castShadow = false;
+
+          // Glow bulb material for visual feedback
+          const bulbMat = new THREE.MeshStandardMaterial({
+            name: 'PerimeterBulb',
+            color: 0xffd080,
+            emissive: 0xffaa40,
+            emissiveIntensity: 0.05,
+            roughness: 0.3,
+          });
+
+          this.estateLights.push({ light, baseIntensity: 8, bulbMaterial: bulbMat });
+          this.root.add(light);
+        }
+      } catch (e) { console.warn('[OutdoorEstateSystem] Perimeter lights failed.', e); }
+    });
+
+    // ── 5. Bronze horse statues at entrance ──────────────────────────────────
+    await this.scheduler.enqueue('estate:horse-statues', 'idle', async () => {
+      try {
+        const source = await this.getModel('/models/decor/bronze_horse_statue.glb');
+        this.prepareImportedModel(source, false);
+        this.normalizeModel(source, { height: 1.6, width: 0.9 });
+
+        for (const [index, statue] of HORSE_STATUES.entries()) {
+          const model = source.clone(true);
+          const container = new THREE.Group();
+          container.name = `HorseStatue_${index}`;
+          container.position.set(...statue.pos);
+          container.rotation.y = statue.rot;
+          container.add(model);
+          this.root.add(container);
+        }
+      } catch (e) { console.warn('[OutdoorEstateSystem] Horse statues failed.', e); }
+    });
+  }
+
   private createMovingCarBody(laneZ: number): RAPIER.RigidBody {
     const sceneRoot = HOUSE_CONFIG.ROOT_POSITION;
     const body = this.world.createRigidBody(
@@ -1234,7 +1291,7 @@ export class OutdoorEstateSystem {
     if (object instanceof THREE.Mesh) {
       object.geometry.computeBoundingBox();
       const size = object.geometry.boundingBox.getSize(new THREE.Vector3());
-      
+
       // If the bounding box is huge, it means multiple wheels are merged into one mesh.
       // Rotating them would make them orbit the car, so we reject this wheel candidate.
       if (size.x > 1.5 || size.z > 2.0) {
