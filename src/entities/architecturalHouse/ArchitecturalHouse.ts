@@ -151,10 +151,14 @@ export class ArchitecturalHouse implements Updatable, Disposable {
 
     // ── Cinematic intro tour ──────────────────────────────────────────────────
     this.tourSystem = new CinematicTourSystem(this.options.camera, this.options.player, {
-      onFinish: () => {
-        void this.loadImportedAssets();
-      },
+      onFinish: () => {},
     });
+
+    // CRITICAL: Force update matrix world of the entire scene before loading assets.
+    // Since GameLoop is not running yet, structureRoot's matrixWorld is identity.
+    // If we don't update it, the physics colliders for the house will be baked at the wrong position.
+    this.options.scene.updateMatrixWorld(true);
+    await this.loadImportedAssets();
 
     this.loaded = true;
     this.tourSystem.playIntro();
