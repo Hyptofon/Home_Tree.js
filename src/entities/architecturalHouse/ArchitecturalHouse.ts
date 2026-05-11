@@ -152,7 +152,7 @@ export class ArchitecturalHouse implements Updatable, Disposable {
     // ── Cinematic intro tour ──────────────────────────────────────────────────
     this.tourSystem = new CinematicTourSystem(this.options.camera, this.options.player, {
       onFinish: () => {
-        void this.loadImportedAssets(structureRoot);
+        void this.loadImportedAssets();
       },
     });
 
@@ -238,7 +238,7 @@ export class ArchitecturalHouse implements Updatable, Disposable {
     };
   }
 
-  private async loadImportedAssets(root: THREE.Group): Promise<void> {
+  private async loadImportedAssets(): Promise<void> {
     if (this.importedAssetsStarted) return;
 
     this.importedAssetsStarted = true;

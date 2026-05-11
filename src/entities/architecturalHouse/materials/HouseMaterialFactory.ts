@@ -227,7 +227,8 @@ export class HouseMaterialFactory {
   ): THREE.Texture {
     const texture = this.textureCache.get(path);
     if (!texture) {
-      throw new Error(`Texture was not preloaded: ${path}`);
+      console.warn(`Texture was not preloaded: ${path}, creating fallback texture`);
+      return this.createFallbackTexture(role);
     }
 
     const materialTexture = texture.clone();
@@ -280,5 +281,41 @@ export class HouseMaterialFactory {
     }
 
     return definition;
+  }
+
+  private createFallbackTexture(role: TextureRole): THREE.Texture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const context = canvas.getContext('2d')!;
+
+    switch (role) {
+      case 'color':
+        context.fillStyle = '#d0d0d0';
+        context.fillRect(0, 0, 256, 256);
+        break;
+      case 'normal':
+        context.fillStyle = '#8080ff';
+        context.fillRect(0, 0, 256, 256);
+        break;
+      case 'roughness':
+        context.fillStyle = '#808080';
+        context.fillRect(0, 0, 256, 256);
+        break;
+      case 'ao':
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, 256, 256);
+        break;
+      case 'height':
+        context.fillStyle = '#808080';
+        context.fillRect(0, 0, 256, 256);
+        break;
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.name = `fallback_${role}`;
+    return texture;
   }
 }

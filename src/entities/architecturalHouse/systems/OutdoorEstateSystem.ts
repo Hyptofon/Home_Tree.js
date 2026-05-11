@@ -213,7 +213,6 @@ const FLOWER_CLUSTER_PLACEMENTS: readonly FlowerClusterPlacement[] = [
 export class OutdoorEstateSystem {
   private readonly world: RAPIER.World;
   private readonly root = new THREE.Group();
-  private readonly sceneRoot: THREE.Group;
   private readonly scheduler: AssetStreamingScheduler;
   private readonly loader = new ModelLoader();
   private readonly textureLoader = new THREE.TextureLoader();
@@ -257,7 +256,6 @@ export class OutdoorEstateSystem {
     scheduler: AssetStreamingScheduler,
   ) {
     this.world = world;
-    this.sceneRoot = sceneRoot;
     this.scheduler = scheduler;
     this.root.name = 'OutdoorEstate';
     sceneRoot.add(this.root);
@@ -1120,7 +1118,7 @@ export class OutdoorEstateSystem {
     }
   }
 
-  private updateCars(delta: number, nightFactor: number): void {
+  private updateCars(_delta: number, nightFactor: number): void {
     const trackStart = -ROAD_LENGTH / 2 - 7;
     const trackSpan = ROAD_LENGTH + 14;
 
@@ -1506,27 +1504,7 @@ export class OutdoorEstateSystem {
     this.rigidBodies.push(body);
   }
 
-  private addEstateFixedCuboid(
-    center: [number, number, number],
-    halfExtents: [number, number, number],
-  ): void {
-    // The visual mesh is added to sceneRoot, so its absolute position includes sceneRoot.position.
-    // We must apply the same offset to the Rapier rigid body since setTranslation is absolute.
-    const worldCenter = [
-      center[0] + this.sceneRoot.position.x,
-      center[1] + this.sceneRoot.position.y,
-      center[2] + this.sceneRoot.position.z,
-    ] as [number, number, number];
-
-    const bodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(...worldCenter);
-    const body = this.world.createRigidBody(bodyDesc);
-    this.world.createCollider(
-      RAPIER.ColliderDesc.cuboid(...halfExtents),
-      body,
-    );
-    this.rigidBodies.push(body);
-  }
-
+  // UNUSED: This function is not called anywhere
   private resolveNightFactor(timeOfDay: number): number {
     if (timeOfDay >= NIGHT_START || timeOfDay <= NIGHT_END) return 1;
 

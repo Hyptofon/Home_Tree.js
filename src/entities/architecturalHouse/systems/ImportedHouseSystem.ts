@@ -179,13 +179,10 @@ export class ImportedHouseSystem implements Disposable {
     model.traverse((child) => {
       if (!(child instanceof THREE.Mesh)) return;
 
-      // The user already has a procedural fence in the estate, so we hide 
-      // the built-in property wall/fence from the imported model.
       if (child.name === 'mauer') {
         child.visible = false;
         return;
       }
-
       child.castShadow = true;
       child.receiveShadow = true;
 
@@ -336,69 +333,71 @@ export class ImportedHouseSystem implements Disposable {
   /**
    * Generates exact trimesh colliders for the structural parts of the house
    * so the player can walk on the floors and stairs, and bump into walls.
+   * 
+   * OPTIMIZATION: Only create colliders for essential structural elements
+   * to reduce physics overhead and prevent invisible wall artifacts.
    */
   private registerColliders(): void {
     if (!this.houseModel) return;
 
-    // 'mauer' was removed because the user already has a procedural fence in the estate.
-    const STRUCTURAL_KEYWORDS = ['Waende', 'Dach', 'Sockel', 'Bodenplatte', 'Treppe', 'Platten', 'Wege', 'F_Glas', 'F_Rahmen', 'T_Rahmen'];
+    // Only create colliders for core structural elements and avoid any glass / frame geometry.
+    const STRUCTURAL_KEYWORDS = ['Sockel', 'Bodenplatte', 'Treppe', 'Platten', 'Waende'];
 
     this.houseModel.traverse((child) => {
       if (!(child instanceof THREE.Mesh)) return;
+      if (!child.visible) return;
+      if (this.isUnsupportedCollisionMesh(child)) return;
 
-      const isStructural = STRUCTURAL_KEYWORDS.some(k => child.name.includes(k));
+      const isStructural = STRUCTURAL_KEYWORDS.some((keyword) => child.name.includes(keyword));
       if (!isStructural) return;
 
       this.createTrimeshCollider(child);
     });
 
-    for (const door of this.doors) {
-      this.createKinematicDoorCollider(door);
+    // if (this.doors.length > 0) {
+    //   for (const door of this.doors) {
+    //     this.createKinematicDoorCollider(door);
+    //   }
+    // }
+  }
+
+  private isUnsupportedCollisionMesh(mesh: THREE.Mesh): boolean {
+    const name = mesh.name.toLowerCase();
+    if (name.includes('glas') || name.includes('glaz') || name.includes('rahmen') || name.includes('frame') || name.includes('window')) {
+      return true;
     }
+
+    const material = mesh.material as any;
+    if (Array.isArray(material)) {
+      return material.some((mat) => mat?.transparent || mat?.opacity < 0.95);
+    }
+
+    return material?.transparent || material?.opacity < 0.95;
   }
 
   private createTrimeshCollider(mesh: THREE.Mesh): void {
-    // Clone geometry so we don't mutate the rendering mesh
     const geometry = mesh.geometry.clone();
-
-    // Apply absolute world matrix (handles scale, rotation, translation)
     geometry.applyMatrix4(mesh.matrixWorld);
+    geometry.computeBoundingBox();
+
+    if (!geometry.boundingBox || geometry.boundingBox.isEmpty()) return;
+
+    const size = new THREE.Vector3();
+    geometry.boundingBox.getSize(size);
+    if (size.x < 0.05 || size.y < 0.05 || size.z < 0.05) return;
 
     const positionAttribute = geometry.attributes.position;
     if (!positionAttribute) return;
 
-    const vertices = new Float32Array(positionAttribute.count * 3);
-    for (let i = 0; i < positionAttribute.count; i++) {
-      vertices[i * 3] = positionAttribute.getX(i);
-      vertices[i * 3 + 1] = positionAttribute.getY(i);
-      vertices[i * 3 + 2] = positionAttribute.getZ(i);
-    }
+    const positions = positionAttribute.array as Float32Array;
+    const index = geometry.index;
+    const indices = index
+      ? new Uint32Array(index.array as ArrayLike<number>)
+      : new Uint32Array(positions.length / 3).map((_, i) => i);
 
-    const indices = new Uint32Array(
-      geometry.index
-        ? geometry.index.count
-        : positionAttribute.count
-    );
-
-    if (geometry.index) {
-      for (let i = 0; i < geometry.index.count; i++) {
-        indices[i] = geometry.index.getX(i);
-      }
-    } else {
-      for (let i = 0; i < positionAttribute.count; i++) {
-        indices[i] = i;
-      }
-    }
-
-    // Because vertices are in absolute world space, the body stays at origin
     const bodyDesc = RAPIER.RigidBodyDesc.fixed();
     const body = this.world.createRigidBody(bodyDesc);
-    this.world.createCollider(
-      RAPIER.ColliderDesc.trimesh(vertices, indices),
-      body,
-    );
-    
-    // Track body so it is properly disposed
+    this.world.createCollider(RAPIER.ColliderDesc.trimesh(positions, indices), body);
     this.rigidBodies.push(body);
   }
 
@@ -407,53 +406,40 @@ export class ImportedHouseSystem implements Disposable {
     const pivot = door.pivot;
 
     const geometry = mesh.geometry.clone();
-
-    // 1. Get mesh into absolute world space
     geometry.applyMatrix4(mesh.matrixWorld);
 
-    // 2. Transform into pivot's local space so the rigid body can sit at the pivot's world transform
     const invPivotMatrix = new THREE.Matrix4().copy(pivot.matrixWorld).invert();
     geometry.applyMatrix4(invPivotMatrix);
 
     const positionAttribute = geometry.attributes.position;
     if (!positionAttribute) return;
 
-    const vertices = new Float32Array(positionAttribute.count * 3);
-    for (let i = 0; i < positionAttribute.count; i++) {
-      vertices[i * 3] = positionAttribute.getX(i);
-      vertices[i * 3 + 1] = positionAttribute.getY(i);
-      vertices[i * 3 + 2] = positionAttribute.getZ(i);
-    }
+    const box = new THREE.Box3().setFromBufferAttribute(positionAttribute as THREE.BufferAttribute);
+    if (box.isEmpty()) return;
 
-    const indices = new Uint32Array(
-      geometry.index ? geometry.index.count : positionAttribute.count
-    );
+    const size = new THREE.Vector3();
+    const center = new THREE.Vector3();
+    box.getSize(size);
+    box.getCenter(center);
 
-    if (geometry.index) {
-      for (let i = 0; i < geometry.index.count; i++) indices[i] = geometry.index.getX(i);
-    } else {
-      for (let i = 0; i < positionAttribute.count; i++) indices[i] = i;
-    }
+    if (size.x < 0.05 || size.y < 0.05 || size.z < 0.05) return;
 
     const worldPos = new THREE.Vector3();
     pivot.getWorldPosition(worldPos);
-    
     const worldQuat = new THREE.Quaternion();
     pivot.getWorldQuaternion(worldQuat);
 
     const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased()
       .setTranslation(worldPos.x, worldPos.y, worldPos.z)
       .setRotation(worldQuat);
-      
+
     const body = this.world.createRigidBody(bodyDesc);
-    this.world.createCollider(
-      RAPIER.ColliderDesc.trimesh(vertices, indices),
-      body,
-    );
-    
+    const colliderDesc = RAPIER.ColliderDesc.cuboid(size.x / 2, size.y / 2, size.z / 2)
+      .setTranslation(center.x, center.y, center.z);
+
+    this.world.createCollider(colliderDesc, body);
     this.rigidBodies.push(body);
-    
-    // Assign to door so DoorAnimationSystem can update it
     (door as any).rigidBody = body;
   }
 }
+

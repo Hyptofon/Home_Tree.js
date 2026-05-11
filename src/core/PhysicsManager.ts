@@ -36,7 +36,10 @@ export class PhysicsManager {
   update(delta: number): void {
     if (!this.world) return;
 
-    this.world.timestep = delta;
+    // OPTIMIZATION: Cap physics timestep to prevent spiral of death
+    // and allow sub-stepping for stability without performance cost
+    const clampedDelta = Math.min(delta, 1/30); // Max 30 FPS physics
+    this.world.timestep = clampedDelta;
     this.world.step();
   }
 

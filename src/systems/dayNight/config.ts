@@ -21,12 +21,12 @@ export const CYCLE_CONFIG = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const SUN_CONFIG = {
-  SHADOW_MAP_SIZE: 1024,
+  SHADOW_MAP_SIZE: 512, // Reduced from 1024: VSM is efficient, smaller map saves VRAM
   SHADOW_NEAR: 0.5,
-  SHADOW_FAR: 180,
+  SHADOW_FAR: 120, // Reduced from 180: tighter bounds for better quality
   SHADOW_BIAS: -0.0005, // Tuned to reduce peter-panning
   SHADOW_NORMAL_BIAS: 0.018,
-  SHADOW_CAMERA_EXTENT: 40, // Tightened bounds: VSMShadowMap needs narrower focus for best quality
+  SHADOW_CAMERA_EXTENT: 30, // Further tightened for VSMShadowMap optimization
   /** Orbital radius (distance from scene centre) */
   ORBIT_RADIUS: 400,
   COLOR_DAY: 0xfff1d6,    // Warm balanced daylight; avoids washed-out noon whites
