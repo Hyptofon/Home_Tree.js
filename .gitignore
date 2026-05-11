@@ -24,3 +24,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+public/models/exterior/jacaranda_tree.bin
+public/models/imported_house/house_uv.bin
