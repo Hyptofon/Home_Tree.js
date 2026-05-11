@@ -56,6 +56,7 @@ export class CloudSystem {
   private readonly material: THREE.ShaderMaterial;
   private readonly clusters: CloudCluster[];
   private readonly dummy: THREE.Object3D;
+  private movementAccumulator = 0;
 
   constructor(cloudTexture: THREE.Texture, camera: THREE.Camera) {
     this.group = new THREE.Group();
@@ -123,8 +124,14 @@ export class CloudSystem {
    */
   update(delta: number, phase: DayPhase, blend: number): void {
     this.updateAppearance(phase, blend);
-    this.updateClusterPositions(delta);
-    this.updateBillboards();
+    this.updateCameraBasis();
+    this.movementAccumulator += delta;
+
+    if (this.movementAccumulator < CLOUD_CONFIG.UPDATE_INTERVAL_SECONDS) return;
+
+    this.updateClusterPositions(this.movementAccumulator);
+    this.movementAccumulator = 0;
+    this.updateInstanceMatrices();
   }
 
   /** Releases GPU resources. */
@@ -240,13 +247,20 @@ export class CloudSystem {
   }
 
   private updateBillboards(): void {
+    this.updateCameraBasis();
+    this.updateInstanceMatrices();
+  }
+
+  private updateCameraBasis(): void {
     const rightUniform = this.material.uniforms.uCameraRight.value as THREE.Vector3;
     const upUniform = this.material.uniforms.uCameraUp.value as THREE.Vector3;
     const cameraMatrix = this.camera.matrixWorld.elements;
 
     rightUniform.set(cameraMatrix[0], cameraMatrix[1], cameraMatrix[2]).normalize();
     upUniform.set(cameraMatrix[4], cameraMatrix[5], cameraMatrix[6]).normalize();
+  }
 
+  private updateInstanceMatrices(): void {
     for (const cluster of this.clusters) {
       for (const puff of cluster.puffs) {
         this.dummy.position.set(

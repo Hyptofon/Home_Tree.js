@@ -2,6 +2,7 @@ import * as THREE from 'three';
 
 import type { AnimationName } from '../types/animations.ts';
 import { ModelLoader } from '../loaders/ModelLoader.ts';
+import { yieldToBrowser } from '../shared/async.ts';
 import { ANIMATION_SOURCES } from './animationConfig.ts';
 import { PLAYER_ANIMATION_CONFIG } from './playerConfig.ts';
 
@@ -26,6 +27,12 @@ export class PlayerAnimator {
   
   /** Logical name of the currently playing animation. */
   private currentName:    AnimationName = 'idle';
+
+  /** Missing clips already reported, preventing console spam from the render loop. */
+  private readonly missingClipWarnings = new Set<AnimationName>();
+
+  /** Stops background clip warmup from touching a disposed mixer. */
+  private disposed = false;
 
   /**
    * Initializes the animator and binds it to the provided 3D model.
@@ -53,27 +60,25 @@ export class PlayerAnimator {
   async loadClips(loader: ModelLoader): Promise<void> {
     const entries = Object.entries(ANIMATION_SOURCES) as [AnimationName, string][];
 
-    await Promise.all(
-      entries.map(async ([name, path]) => {
-        const clip = await loader.loadClip(path);
-        if (!clip) {
-          console.warn(`[PlayerAnimator] No clip found in: ${path}`);
-          return;
-        }
-        clip.name = name;
-        const action = this.mixer.clipAction(clip);
+    await Promise.all(entries.map(([name, path]) => this.loadAction(loader, name, path)));
+  }
 
-        if (name === 'walkBack') {
-          action.timeScale = PLAYER_ANIMATION_CONFIG.REVERSE_WALK_TIME_SCALE;
-        }
-        if (name === 'jump') {
-          action.setLoop(THREE.LoopOnce, 1);
-          action.clampWhenFinished = true;
-        }
+  /**
+   * Loads only the idle clip required for the first rendered frame.
+   *
+   * @param loader The instantiated ModelLoader used to fetch GLB assets.
+   */
+  async loadCriticalClips(loader: ModelLoader): Promise<void> {
+    await this.loadAction(loader, 'idle', ANIMATION_SOURCES.idle);
+  }
 
-        this.actions.set(name, action);
-      })
-    );
+  /**
+   * Streams movement clips in the background after the scene is interactive.
+   *
+   * @param loader The instantiated ModelLoader used to fetch GLB assets.
+   */
+  warmupNonCriticalClips(loader: ModelLoader): void {
+    void this.loadNonCriticalClips(loader);
   }
 
   /**
@@ -91,7 +96,10 @@ export class PlayerAnimator {
 
     const next = this.actions.get(name);
     if (!next) {
-      console.warn(`[PlayerAnimator] Animation "${name}" not loaded.`);
+      if (!this.missingClipWarnings.has(name)) {
+        this.missingClipWarnings.add(name);
+        console.warn(`[PlayerAnimator] Animation "${name}" is still streaming.`);
+      }
       return;
     }
 
@@ -134,7 +142,50 @@ export class PlayerAnimator {
    * Required for memory management when the Player is destroyed.
    */
   dispose(): void {
+    this.disposed = true;
     this.mixer.stopAllAction();
     this.mixer.uncacheRoot(this.mixer.getRoot());
+  }
+
+  private async loadNonCriticalClips(loader: ModelLoader): Promise<void> {
+    const entries = (Object.entries(ANIMATION_SOURCES) as [AnimationName, string][])
+      .filter(([name]) => name !== 'idle');
+
+    for (const [name, path] of entries) {
+      if (this.disposed) return;
+
+      await this.loadAction(loader, name, path);
+      await yieldToBrowser();
+    }
+  }
+
+  private async loadAction(
+    loader: ModelLoader,
+    name: AnimationName,
+    path: string,
+  ): Promise<void> {
+    if (this.actions.has(name)) return;
+
+    const clip = await loader.loadClip(path);
+    if (!clip || this.disposed) {
+      if (!clip) console.warn(`[PlayerAnimator] No clip found in: ${path}`);
+      return;
+    }
+
+    clip.name = name;
+    const action = this.mixer.clipAction(clip);
+    this.configureAction(name, action);
+    this.actions.set(name, action);
+    this.missingClipWarnings.delete(name);
+  }
+
+  private configureAction(name: AnimationName, action: THREE.AnimationAction): void {
+    if (name === 'walkBack') {
+      action.timeScale = PLAYER_ANIMATION_CONFIG.REVERSE_WALK_TIME_SCALE;
+    }
+    if (name === 'jump') {
+      action.setLoop(THREE.LoopOnce, 1);
+      action.clampWhenFinished = true;
+    }
   }
 }

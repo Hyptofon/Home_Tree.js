@@ -80,6 +80,7 @@ export class Environment {
     });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = 'EnvironmentFloor';
+    mesh.position.y = -0.12;
     mesh.rotation.x = -Math.PI / 2;
     mesh.receiveShadow = true;
     this.group.add(mesh);

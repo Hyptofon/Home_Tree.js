@@ -21,12 +21,12 @@ export const CYCLE_CONFIG = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const SUN_CONFIG = {
-  SHADOW_MAP_SIZE: 4096, // Increased for AAA realism
+  SHADOW_MAP_SIZE: 1024,
   SHADOW_NEAR: 0.5,
-  SHADOW_FAR: 720,
+  SHADOW_FAR: 180,
   SHADOW_BIAS: -0.0005, // Tuned to reduce peter-panning
   SHADOW_NORMAL_BIAS: 0.018,
-  SHADOW_CAMERA_EXTENT: 260, // Covers the hero tower and foreground plaza
+  SHADOW_CAMERA_EXTENT: 74,
   /** Orbital radius (distance from scene centre) */
   ORBIT_RADIUS: 400,
   COLOR_DAY: 0xfff1d6,    // Warm balanced daylight; avoids washed-out noon whites
@@ -61,7 +61,7 @@ export const MOON_CONFIG = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const STARS_CONFIG = {
-  COUNT: 6000,
+  COUNT: 4200,
   SPHERE_RADIUS: 850,
   SIZE_MIN: 0.4, // Tinier, sharper stars
   SIZE_MAX: 1.5,
@@ -81,11 +81,12 @@ export const STARS_CONFIG = {
 
 export const CLOUD_CONFIG = {
   WIND_DIRECTION: Math.PI * 0.18,
+  UPDATE_INTERVAL_SECONDS: 1 / 30,
   LAYERS: [
     {
-      clusterCount: 18,
-      centerAnchorCount: 5,
-      particlesPerCluster: 18,
+      clusterCount: 12,
+      centerAnchorCount: 4,
+      particlesPerCluster: 16,
       orbitRadiusMin: 0,
       orbitRadiusMax: 540,
       heightMin: 118,
@@ -108,8 +109,8 @@ export const CLOUD_CONFIG = {
       wrapRadius: 1080,
     },
     {
-      clusterCount: 10,
-      particlesPerCluster: 14,
+      clusterCount: 7,
+      particlesPerCluster: 12,
       orbitRadiusMin: 220,
       orbitRadiusMax: 780,
       heightMin: 76,
@@ -132,8 +133,8 @@ export const CLOUD_CONFIG = {
       wrapRadius: 1160,
     },
     {
-      clusterCount: 14,
-      particlesPerCluster: 14,
+      clusterCount: 9,
+      particlesPerCluster: 12,
       orbitRadiusMin: 480,
       orbitRadiusMax: 1180,
       heightMin: 145,
@@ -156,8 +157,8 @@ export const CLOUD_CONFIG = {
       wrapRadius: 1460,
     },
     {
-      clusterCount: 16,
-      particlesPerCluster: 12,
+      clusterCount: 10,
+      particlesPerCluster: 10,
       orbitRadiusMin: 840,
       orbitRadiusMax: 1680,
       heightMin: 265,

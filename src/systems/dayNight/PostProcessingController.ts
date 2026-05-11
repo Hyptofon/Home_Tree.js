@@ -44,7 +44,7 @@ export class PostProcessingController {
       intensity: 0.025,
       luminanceThreshold: 1.28,
       luminanceSmoothing: 0.04,
-      mipmapBlur: true,
+      mipmapBlur: false,
     });
 
     this.vignette = new VignetteEffect({
@@ -89,6 +89,16 @@ export class PostProcessingController {
    */
   render(delta: number): void {
     this.composer.render(delta);
+  }
+
+  /**
+   * Mirrors viewport changes into composer render targets.
+   *
+   * @param width - CSS viewport width in pixels.
+   * @param height - CSS viewport height in pixels.
+   */
+  setSize(width: number, height: number): void {
+    this.composer.setSize(width, height);
   }
 
   /** Releases composer-owned render targets and materials. */

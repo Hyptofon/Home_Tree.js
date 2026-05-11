@@ -13,6 +13,9 @@ export class ModelLoader {
   /** Internal Three.js GLTFLoader instance used to parse files. */
   private readonly loader = new GLTFLoader();
 
+  /** Cached animation clips keyed by source path to avoid duplicate GLB parses. */
+  private readonly clipCache = new Map<string, Promise<THREE.AnimationClip | null>>();
+
   /**
    * Loads a GLB/GLTF file and resolves with the parsed scene group.
    * 
@@ -32,6 +35,19 @@ export class ModelLoader {
    * @returns A promise resolving to the AnimationClip, or null if the file contains none.
    */
   async loadClip(path: string): Promise<THREE.AnimationClip | null> {
+    const cached = this.clipCache.get(path);
+    if (cached) {
+      const clip = await cached;
+      return clip?.clone() ?? null;
+    }
+
+    const promise = this.loadClipSource(path);
+    this.clipCache.set(path, promise);
+    const clip = await promise;
+    return clip?.clone() ?? null;
+  }
+
+  private async loadClipSource(path: string): Promise<THREE.AnimationClip | null> {
     try {
       const gltf = await this.loader.loadAsync(path);
       const clip = gltf.animations[0] ?? null;

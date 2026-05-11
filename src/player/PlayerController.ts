@@ -37,6 +37,9 @@ export class PlayerController {
   /** Rapier translation object reused for kinematic movement queries. */
   private readonly translationOffset: RAPIER.Vector = { x: 0, y: 0, z: 0 };
 
+  /** Owned kinematic body translation reused to avoid per-frame Rapier vector allocation. */
+  private readonly bodyPosition: RAPIER.Vector = { x: 0, y: 0, z: 0 };
+
   /** Input source shared by the game systems. */
   private readonly input = InputManager.instance;
 
@@ -77,6 +80,9 @@ export class PlayerController {
         cfg.SPAWN_POSITION.z,
       ),
     );
+    this.bodyPosition.x = cfg.SPAWN_POSITION.x;
+    this.bodyPosition.y = cfg.SPAWN_POSITION.y;
+    this.bodyPosition.z = cfg.SPAWN_POSITION.z;
     this.collider = world.createCollider(
       RAPIER.ColliderDesc.capsule(cfg.CAPSULE_HALF_HEIGHT, cfg.CAPSULE_RADIUS),
       this.rigidBody,
@@ -129,6 +135,28 @@ export class PlayerController {
   dispose(): void {
     this.world.removeCharacterController(this.characterController);
     this.world.removeRigidBody(this.rigidBody);
+  }
+
+  /**
+   * Repositions the kinematic body and visual root without preserving momentum.
+   *
+   * @param root - Visual player group synced to the physics body.
+   * @param position - Desired visual root position in world units.
+   */
+  teleportTo(root: THREE.Group, position: THREE.Vector3Like): void {
+    this.velocity.set(0, 0, 0);
+    this.targetVelocity.set(0, 0, 0);
+    this.jumpVelocity = 0;
+    this.isJumping = false;
+    this.jumpConsumed = false;
+
+    this.bodyPosition.x = position.x;
+    this.bodyPosition.y = position.y + PLAYER_CONTROLLER_CONFIG.CHARACTER_GROUND_OFFSET;
+    this.bodyPosition.z = position.z;
+
+    this.rigidBody.setTranslation(this.bodyPosition, true);
+    this.rigidBody.setNextKinematicTranslation(this.bodyPosition);
+    root.position.set(position.x, position.y, position.z);
   }
 
   /**
@@ -217,16 +245,15 @@ export class PlayerController {
 
     this.characterController.computeColliderMovement(this.collider, this.translationOffset);
     const computedMovement = this.characterController.computedMovement();
-    const newPosition = this.rigidBody.translation();
-    newPosition.x += computedMovement.x;
-    newPosition.y += computedMovement.y;
-    newPosition.z += computedMovement.z;
+    this.bodyPosition.x += computedMovement.x;
+    this.bodyPosition.y += computedMovement.y;
+    this.bodyPosition.z += computedMovement.z;
 
-    this.rigidBody.setNextKinematicTranslation(newPosition);
+    this.rigidBody.setNextKinematicTranslation(this.bodyPosition);
     root.position.set(
-      newPosition.x,
-      newPosition.y - PLAYER_CONTROLLER_CONFIG.CHARACTER_GROUND_OFFSET,
-      newPosition.z,
+      this.bodyPosition.x,
+      this.bodyPosition.y - PLAYER_CONTROLLER_CONFIG.CHARACTER_GROUND_OFFSET,
+      this.bodyPosition.z,
     );
   }
 

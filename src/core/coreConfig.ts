@@ -11,7 +11,15 @@ export const GAME_LOOP_CONFIG = {
 
 /** Renderer defaults tuned for stable cinematic quality on common displays. */
 export const RENDERER_CONFIG = {
-  MAX_PIXEL_RATIO: 2,
+  ANTIALIAS: true, // MSAA enabled for sharper edges
+  INITIAL_PIXEL_RATIO: 2.0, // Start higher for modern displays
+  MIN_PIXEL_RATIO: 1.0, // Don't drop below 1x (prevents heavy blur)
+  MAX_PIXEL_RATIO: 2.0, // Allow full retina resolution
+  PIXEL_RATIO_STEP: 0.1,
+  QUALITY_SAMPLE_SECONDS: 0.8,
+  TARGET_FRAME_MS: 16.7,
+  DOWNGRADE_FRAME_MS: 18.8,
+  UPGRADE_FRAME_MS: 14.4,
   TONE_MAPPING_EXPOSURE: 0.55,
 } as const;
 

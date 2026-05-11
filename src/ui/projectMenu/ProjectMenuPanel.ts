@@ -73,11 +73,12 @@ export class ProjectMenuPanel implements Disposable {
           <section class="project-menu__section">
             <h3>What is enabled</h3>
             <ul class="project-menu__list">
-              <li>Cinematic day/night cycle with smooth phase blending.</li>
-              <li>Dynamic clouds that fade out into a clear star field at night.</li>
-              <li>Moon, stars, fog, sky grading, bloom, SSAO, and tone mapping.</li>
+              <li>Two-floor architectural house with 10 interactive zones.</li>
+              <li>PBR floors, walls, glass, wood trim, imported GLTF furniture, and HDRI reflections.</li>
+              <li>Landscaped estate with road lamps, moving cars, fence, pond, fountain, and playground.</li>
+              <li>Cinematic arrival camera, day/night cycle, fog, sky grading, bloom, and tone mapping.</li>
+              <li>Wall hover/click material picker, animated doors, dust motes, and shadowed lamps.</li>
               <li>Third-person camera, first-person toggle, character movement, sprint, and jump.</li>
-              <li>World-time HUD with direct time input and 24-hour scrubber.</li>
             </ul>
           </section>
 
@@ -99,6 +100,7 @@ export class ProjectMenuPanel implements Disposable {
               <span><kbd>Shift</kbd> + <kbd>W</kbd></span><span>Sprint</span>
               <span><kbd>Space</kbd></span><span>Jump</span>
               <span><kbd>C</kbd></span><span>Camera view</span>
+              <span><kbd>Click</kbd></span><span>Select walls and doors</span>
               <span><kbd>Tab</kbd></span><span>Open or close this menu</span>
             </div>
           </section>

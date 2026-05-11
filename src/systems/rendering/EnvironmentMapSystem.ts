@@ -1,25 +1,27 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 
 import type { Disposable } from '../../types/interfaces.ts';
 import { disposeObjectTree } from '../../shared/three/dispose.ts';
 
 const ENVIRONMENT_INTENSITY = 0.92;
+const HDR_ENVIRONMENT_PATH = '/environment/sunset.hdr';
 
 /**
  * Builds a PMREM-filtered environment map for physically based materials.
  *
- * The project does not ship a separate HDR texture, so this system generates a
- * compact studio-grade high-dynamic-range probe from Three.js RoomEnvironment.
- * PBR assets still receive realistic specular response, while the sky remains
- * owned by the dynamic day/night system.
+ * The visual sky remains owned by the dynamic day/night system. This probe is
+ * used for realistic PBR reflections and indirect specular response.
  */
 export class EnvironmentMapSystem implements Disposable {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene: THREE.Scene;
   private readonly pmremGenerator: THREE.PMREMGenerator;
+  private readonly hdrLoader = new RGBELoader();
 
   private environmentMap: THREE.Texture | null = null;
+  private environmentTarget: THREE.WebGLRenderTarget | null = null;
 
   /**
    * @param renderer - Renderer used by PMREMGenerator.
@@ -31,20 +33,27 @@ export class EnvironmentMapSystem implements Disposable {
     this.pmremGenerator = new THREE.PMREMGenerator(this.renderer);
   }
 
-  /** Generates and assigns the environment map once during bootstrap. */
-  init(): void {
+  /** Loads or generates and assigns the environment map once during bootstrap. */
+  async init(): Promise<void> {
     if (this.environmentMap) return;
 
+    try {
+      const texture = await this.hdrLoader.loadAsync(HDR_ENVIRONMENT_PATH);
+      texture.mapping = THREE.EquirectangularReflectionMapping;
+      texture.name = 'SunsetHDRIEnvironmentSource';
+
+      this.environmentTarget = this.pmremGenerator.fromEquirectangular(texture);
+      texture.dispose();
+      this.assignEnvironment('SunsetHDRIPMREMEnvironment');
+      return;
+    } catch (error) {
+      console.warn('[EnvironmentMapSystem] HDRI load failed, using procedural PMREM.', error);
+    }
+
     const roomEnvironment = new RoomEnvironment();
-    const target = this.pmremGenerator.fromScene(roomEnvironment, 0.04);
-    this.environmentMap = target.texture;
-    this.environmentMap.name = 'ProceduralPMREMEnvironment';
-
-    this.scene.environment = this.environmentMap;
-    this.scene.environmentIntensity = ENVIRONMENT_INTENSITY;
-
+    this.environmentTarget = this.pmremGenerator.fromScene(roomEnvironment, 0.04);
     disposeObjectTree(roomEnvironment);
-    target.dispose();
+    this.assignEnvironment('ProceduralPMREMEnvironment');
   }
 
   /** Releases generated GPU resources and detaches the scene environment. */
@@ -53,8 +62,18 @@ export class EnvironmentMapSystem implements Disposable {
       this.scene.environment = null;
     }
 
-    this.environmentMap?.dispose();
     this.environmentMap = null;
+    this.environmentTarget?.dispose();
+    this.environmentTarget = null;
     this.pmremGenerator.dispose();
+  }
+
+  private assignEnvironment(name: string): void {
+    if (!this.environmentTarget) return;
+
+    this.environmentMap = this.environmentTarget.texture;
+    this.environmentMap.name = name;
+    this.scene.environment = this.environmentMap;
+    this.scene.environmentIntensity = ENVIRONMENT_INTENSITY;
   }
 }

@@ -8,7 +8,7 @@ import { defineConfig } from 'vite';
  * split along stable engine/vendor boundaries.
  */
 export default defineConfig({
-  cacheDir: 'node_modules/.vite-home-tree',
+  cacheDir: '.vite-house-cache',
   build: {
     rollupOptions: {
       output: {

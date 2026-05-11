@@ -92,6 +92,20 @@ export function celestialPosition(
   orbitRadius: number,
   tiltDeg: number = 0,
 ): THREE.Vector3 {
+  return celestialPositionInto(new THREE.Vector3(), hour, riseHour, setHour, orbitRadius, tiltDeg);
+}
+
+/**
+ * Computes the world-space position of a celestial body into an existing vector.
+ */
+export function celestialPositionInto(
+  target: THREE.Vector3,
+  hour: number,
+  riseHour: number,
+  setHour: number,
+  orbitRadius: number,
+  tiltDeg: number = 0,
+): THREE.Vector3 {
   const span = setHour - riseHour;
   const progress = (hour - riseHour) / span; // 0 = rise, 1 = set
   // Elevation: peaks at π/2 at noon (progress=0.5), zero at horizon
@@ -100,7 +114,7 @@ export function celestialPosition(
   const azimuth = (progress - 0.5) * 2;
 
   const tiltRad = (tiltDeg * Math.PI) / 180;
-  return new THREE.Vector3(
+  return target.set(
     azimuth   * orbitRadius,
     elevation * orbitRadius * Math.cos(tiltRad),
     -elevation * orbitRadius * Math.sin(tiltRad) - orbitRadius * 0.1,

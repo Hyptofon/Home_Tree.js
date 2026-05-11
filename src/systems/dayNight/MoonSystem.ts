@@ -4,7 +4,7 @@
  */
 import * as THREE from 'three';
 import { MOON_CONFIG, STARS_CONFIG } from './config.ts';
-import { celestialPosition, clamp } from './utils.ts';
+import { celestialPositionInto, clamp } from './utils.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MoonSystem
@@ -19,10 +19,16 @@ export class MoonSystem {
   readonly sprite: THREE.Sprite;
 
   private readonly mat: THREE.SpriteMaterial;
+  private readonly texture: THREE.Texture | null;
+  private readonly position = new THREE.Vector3();
 
   constructor(moonTexture: THREE.Texture | null) {
     // Process the JPG texture into a round PNG-like texture with soft edges
     const processedTexture = moonTexture ? this.createRoundTexture(moonTexture) : null;
+    this.texture = processedTexture;
+    if (moonTexture && processedTexture !== moonTexture) {
+      moonTexture.dispose();
+    }
     // Moon light — cool blue-lavender
     this.light = new THREE.PointLight(
       MOON_CONFIG.LIGHT_COLOR,
@@ -92,10 +98,10 @@ export class MoonSystem {
 
     // Moon rises when sun sets and vice-versa
     const moonHour = (time + 12) % 24;
-    const pos = celestialPosition(moonHour, 6, 20, ORBIT_RADIUS, 10);
+    celestialPositionInto(this.position, moonHour, 6, 20, ORBIT_RADIUS, 10);
 
-    this.light.position.copy(pos);
-    this.sprite.position.copy(pos);
+    this.light.position.copy(this.position);
+    this.sprite.position.copy(this.position);
 
     // Fade based on same thresholds as stars
     let targetOpacity = 0;
@@ -112,6 +118,7 @@ export class MoonSystem {
 
   /** Releases GPU resources. */
   dispose(): void {
+    this.texture?.dispose();
     this.mat.dispose();
   }
 }

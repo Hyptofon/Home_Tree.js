@@ -20,6 +20,7 @@
     "@types/howler": "^2.2.12",
     "@types/three": "^0.167.0",
     "howler": "^2.2.4",
+    "lil-gui": "^0.21.0",
     "postprocessing": "^6.38.0",
     "three": "^0.167.0",
     "zustand": "^5.0.13"

@@ -34,7 +34,7 @@ import {
 import {
   wrapTime,
   resolvePhase,
-  celestialPosition,
+  celestialPositionInto,
   lerpRGB,
   applyRGBToColor,
   lerp,
@@ -101,6 +101,7 @@ export class DayNightCycle implements Updatable, Disposable {
 
   // ── Sky ────────────────────────────────────────────────────────────────────
   private sky!:       Sky;
+  private readonly sunPosition = new THREE.Vector3();
 
   // ── Subsystems ─────────────────────────────────────────────────────────────
   private stars!:  StarField;
@@ -376,8 +377,8 @@ export class DayNightCycle implements Updatable, Disposable {
   private updateSun(time: number): void {
     // Sun is visible from ~4:30 to ~19:30
     // Increased tilt to 25 degrees for realistic earth-like solar declination
-    const pos = celestialPosition(time, 4.5, 19.5, SUN_CONFIG.ORBIT_RADIUS, 25);
-    this.sun.position.copy(pos);
+    celestialPositionInto(this.sunPosition, time, 4.5, 19.5, SUN_CONFIG.ORBIT_RADIUS, 25);
+    this.sun.position.copy(this.sunPosition);
     this.sun.target.position.set(0, 0, 0);
 
     // Colour: warm orange at horizon, white at zenith

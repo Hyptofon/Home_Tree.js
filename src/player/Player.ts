@@ -67,9 +67,10 @@ export class Player {
     this.controller = new PlayerController(this.world);
     this.playerCamera = new PlayerCamera(this.camera);
 
-    await this.animator.loadClips(this.loader);
+    await this.animator.loadCriticalClips(this.loader);
     this.animator.play('idle', 0);
     this.loaded = true;
+    this.animator.warmupNonCriticalClips(this.loader);
   }
 
   /**
@@ -81,6 +82,21 @@ export class Player {
     const isFirstPerson = this.playerCamera.toggleMode();
     this.setModelVisible(!isFirstPerson);
     return isFirstPerson;
+  }
+
+  /**
+   * Moves the player and its kinematic physics body to a world-space point.
+   *
+   * @param position - Desired visual root position in world units.
+   */
+  teleportTo(position: THREE.Vector3Like): void {
+    if (!this.loaded) {
+      this.root.position.set(position.x, position.y, position.z);
+      return;
+    }
+
+    this.controller.teleportTo(this.root, position);
+    this.playerCamera.update(this.root);
   }
 
   /**

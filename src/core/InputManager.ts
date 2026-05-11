@@ -40,6 +40,9 @@ export class InputManager {
   /** Accumulated locked-pointer Y movement since the last frame. */
   public movementY = 0;
 
+  /** Reused mouse delta object returned by consumeMouseDelta. */
+  private readonly consumedMouseDelta = { x: 0, y: 0 };
+
   /** True when the configured pointer-lock target currently owns the pointer. */
   public get isLocked(): boolean {
     return document.pointerLockElement === this.pointerLockTarget;
@@ -79,10 +82,11 @@ export class InputManager {
    * @returns Pointer delta in CSS pixels.
    */
   consumeMouseDelta(): { x: number; y: number } {
-    const delta = { x: this.movementX, y: this.movementY };
+    this.consumedMouseDelta.x = this.movementX;
+    this.consumedMouseDelta.y = this.movementY;
     this.movementX = 0;
     this.movementY = 0;
-    return delta;
+    return this.consumedMouseDelta;
   }
 
   /**

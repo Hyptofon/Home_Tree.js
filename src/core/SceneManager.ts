@@ -33,12 +33,16 @@ export class SceneManager {
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
       canvas,
-      antialias: true,
+      antialias: RENDERER_CONFIG.ANTIALIAS,
       powerPreference: 'high-performance',
     });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(
-      Math.min(window.devicePixelRatio, RENDERER_CONFIG.MAX_PIXEL_RATIO),
+      Math.min(
+        window.devicePixelRatio,
+        RENDERER_CONFIG.INITIAL_PIXEL_RATIO,
+        RENDERER_CONFIG.MAX_PIXEL_RATIO,
+      ),
     );
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
