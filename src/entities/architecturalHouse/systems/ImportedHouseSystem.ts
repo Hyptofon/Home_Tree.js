@@ -354,11 +354,6 @@ export class ImportedHouseSystem implements Disposable {
       this.createTrimeshCollider(child);
     });
 
-    // if (this.doors.length > 0) {
-    //   for (const door of this.doors) {
-    //     this.createKinematicDoorCollider(door);
-    //   }
-    // }
   }
 
   private isUnsupportedCollisionMesh(mesh: THREE.Mesh): boolean {
@@ -401,45 +396,5 @@ export class ImportedHouseSystem implements Disposable {
     this.rigidBodies.push(body);
   }
 
-  private createKinematicDoorCollider(door: DoorInteraction): void {
-    const mesh = door.mesh;
-    const pivot = door.pivot;
-
-    const geometry = mesh.geometry.clone();
-    geometry.applyMatrix4(mesh.matrixWorld);
-
-    const invPivotMatrix = new THREE.Matrix4().copy(pivot.matrixWorld).invert();
-    geometry.applyMatrix4(invPivotMatrix);
-
-    const positionAttribute = geometry.attributes.position;
-    if (!positionAttribute) return;
-
-    const box = new THREE.Box3().setFromBufferAttribute(positionAttribute as THREE.BufferAttribute);
-    if (box.isEmpty()) return;
-
-    const size = new THREE.Vector3();
-    const center = new THREE.Vector3();
-    box.getSize(size);
-    box.getCenter(center);
-
-    if (size.x < 0.05 || size.y < 0.05 || size.z < 0.05) return;
-
-    const worldPos = new THREE.Vector3();
-    pivot.getWorldPosition(worldPos);
-    const worldQuat = new THREE.Quaternion();
-    pivot.getWorldQuaternion(worldQuat);
-
-    const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased()
-      .setTranslation(worldPos.x, worldPos.y, worldPos.z)
-      .setRotation(worldQuat);
-
-    const body = this.world.createRigidBody(bodyDesc);
-    const colliderDesc = RAPIER.ColliderDesc.cuboid(size.x / 2, size.y / 2, size.z / 2)
-      .setTranslation(center.x, center.y, center.z);
-
-    this.world.createCollider(colliderDesc, body);
-    this.rigidBodies.push(body);
-    (door as any).rigidBody = body;
-  }
 }
 
