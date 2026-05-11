@@ -26,7 +26,7 @@ export const SUN_CONFIG = {
   SHADOW_FAR: 180,
   SHADOW_BIAS: -0.0005, // Tuned to reduce peter-panning
   SHADOW_NORMAL_BIAS: 0.018,
-  SHADOW_CAMERA_EXTENT: 74,
+  SHADOW_CAMERA_EXTENT: 40, // Tightened bounds: VSMShadowMap needs narrower focus for best quality
   /** Orbital radius (distance from scene centre) */
   ORBIT_RADIUS: 400,
   COLOR_DAY: 0xfff1d6,    // Warm balanced daylight; avoids washed-out noon whites

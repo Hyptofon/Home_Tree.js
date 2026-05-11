@@ -11,10 +11,10 @@ export const GAME_LOOP_CONFIG = {
 
 /** Renderer defaults tuned for stable cinematic quality on common displays. */
 export const RENDERER_CONFIG = {
-  ANTIALIAS: true, // MSAA enabled for sharper edges
-  INITIAL_PIXEL_RATIO: 2.0, // Start higher for modern displays
+  ANTIALIAS: false, // Disabled: SMAA is more efficient than MSAA with EffectComposer
+  INITIAL_PIXEL_RATIO: 1.5, // Balanced quality: nearly imperceptible from 2.0 but 43% fewer pixels
   MIN_PIXEL_RATIO: 1.0, // Don't drop below 1x (prevents heavy blur)
-  MAX_PIXEL_RATIO: 2.0, // Allow full retina resolution
+  MAX_PIXEL_RATIO: 1.5, // Optimized: excellent quality with better frame rates
   PIXEL_RATIO_STEP: 0.1,
   QUALITY_SAMPLE_SECONDS: 0.8,
   TARGET_FRAME_MS: 16.7,

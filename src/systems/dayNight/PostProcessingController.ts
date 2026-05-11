@@ -4,6 +4,7 @@ import {
   EffectComposer,
   EffectPass,
   RenderPass,
+  SMAAEffect,
   VignetteEffect,
 } from 'postprocessing';
 
@@ -23,6 +24,7 @@ export class PostProcessingController {
   readonly composer: EffectComposer;
 
   private readonly renderer: THREE.WebGLRenderer;
+  private readonly smaa: SMAAEffect;
   private readonly bloom: BloomEffect;
   private readonly vignette: VignetteEffect;
 
@@ -40,6 +42,13 @@ export class PostProcessingController {
     this.composer = new EffectComposer(renderer);
     this.composer.addPass(new RenderPass(scene, camera));
 
+    // SMAA: Subpixel Morphological Antialiasing
+    // Much more efficient than MSAA when using EffectComposer:
+    // analyzes only object edges and smooths them without reducing sharpness.
+    this.smaa = new SMAAEffect({
+      preset: SMAAEffect.PresetMode.MEDIUM,
+    });
+
     this.bloom = new BloomEffect({
       intensity: 0.025,
       luminanceThreshold: 1.28,
@@ -52,7 +61,7 @@ export class PostProcessingController {
       offset: 0.62,
     });
 
-    this.composer.addPass(new EffectPass(camera, this.bloom, this.vignette));
+    this.composer.addPass(new EffectPass(camera, this.smaa, this.bloom, this.vignette));
   }
 
   /**
@@ -103,6 +112,7 @@ export class PostProcessingController {
 
   /** Releases composer-owned render targets and materials. */
   dispose(): void {
+    this.smaa.dispose();
     this.composer.dispose();
   }
 }
