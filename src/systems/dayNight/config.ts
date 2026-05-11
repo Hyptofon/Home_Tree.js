@@ -21,7 +21,7 @@ export const CYCLE_CONFIG = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const SUN_CONFIG = {
-  SHADOW_MAP_SIZE: 512, // Reduced from 1024: VSM is efficient, smaller map saves VRAM
+  SHADOW_MAP_SIZE: 1024, // Increased from 512 for crisper shadows
   SHADOW_NEAR: 0.5,
   SHADOW_FAR: 120, // Reduced from 180: tighter bounds for better quality
   SHADOW_BIAS: -0.0005, // Tuned to reduce peter-panning

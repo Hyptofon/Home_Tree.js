@@ -47,14 +47,14 @@ export class PostProcessingController {
     // Much more efficient than MSAA when using EffectComposer:
     // analyzes only object edges and smooths them without reducing sharpness.
     this.smaa = new SMAAEffect({
-      preset: SMAAPreset.MEDIUM,
+      preset: SMAAPreset.HIGH,
     });
 
     this.bloom = new BloomEffect({
       intensity: 0.015, // Reduced from 0.025: subtle bloom saves GPU
       luminanceThreshold: 1.35, // Increased from 1.28: fewer bright pixels processed
       luminanceSmoothing: 0.04,
-      mipmapBlur: false,
+      mipmapBlur: true,
     });
 
     this.vignette = new VignetteEffect({

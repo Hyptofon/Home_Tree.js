@@ -12,14 +12,14 @@ export const GAME_LOOP_CONFIG = {
 /** Renderer defaults tuned for stable cinematic quality on common displays. */
 export const RENDERER_CONFIG = {
   ANTIALIAS: false, // Disabled: SMAA is more efficient than MSAA with EffectComposer
-  INITIAL_PIXEL_RATIO: 1.0, // Start conservative: most users have 1080p displays
+  INITIAL_PIXEL_RATIO: 1.5, // Increased from 1.0 for crisper starting graphics
   MIN_PIXEL_RATIO: 0.8, // Allow down to 0.8x for very weak GPUs
-  MAX_PIXEL_RATIO: 1.2, // Cap at 1.2x: 30-40% performance boost vs 1.5x
+  MAX_PIXEL_RATIO: 2.0, // Increased from 1.2 for high-end displays
   PIXEL_RATIO_STEP: 0.1,
   QUALITY_SAMPLE_SECONDS: 0.5, // Faster adaptation: respond quicker to frame drops
   TARGET_FRAME_MS: 16.7,
-  DOWNGRADE_FRAME_MS: 20.0, // More aggressive downgrade threshold
-  UPGRADE_FRAME_MS: 15.0, // More conservative upgrade threshold
+  DOWNGRADE_FRAME_MS: 17.5, // Tighter threshold (approx 57 FPS) to maintain stability
+  UPGRADE_FRAME_MS: 14.5, // Tighter threshold (approx 69 FPS) for quicker quality bumps
   TONE_MAPPING_EXPOSURE: 0.55,
 } as const;
 
