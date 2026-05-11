@@ -21,7 +21,6 @@ import { SignageSystem } from './systems/SignageSystem.ts';
 import { SurfaceInteractionSystem } from './systems/SurfaceInteractionSystem.ts';
 import type {
   HouseDebugApi,
-  ZoneId,
 } from './types.ts';
 import { HOUSE_CONFIG } from './architecturalHouseConfig.ts';
 
@@ -57,7 +56,6 @@ export class ArchitecturalHouse implements Updatable, Disposable {
   private structureRigidBodies: readonly RAPIER.RigidBody[] = [];
   private firstFloorRoot!: THREE.Group;
   private secondFloorRoot!: THREE.Group;
-  private activeZoneId: ZoneId | null = null;
   private importedAssetsStarted = false;
   private loaded = false;
   private disposed = false;

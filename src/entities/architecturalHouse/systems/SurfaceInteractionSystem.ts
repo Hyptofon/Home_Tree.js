@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 import { InputManager } from '../../../core/InputManager.ts';
-import type { DoorInteraction, ZoneId, WallSurface } from '../types.ts';
+import type { DoorInteraction, WallSurface } from '../types.ts';
 
 type SurfaceInteractionOptions = {
   readonly canvas: HTMLCanvasElement;
