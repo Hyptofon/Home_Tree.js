@@ -89,11 +89,9 @@ const TREE_LAYOUT = [
   { position: [-24, 0, 4], height: 7.7, canopy: 3.6, color: 0x6c8452 },
   { position: [24, 0, 7], height: 7.1, canopy: 3.25, color: 0x557449 },
   { position: [-15, 0, 18], height: 6.4, canopy: 3.0, color: 0x6f8355 },
-  { position: [15, 0, 18], height: 6.6, canopy: 3.0, color: 0x5f7a4d },
   { position: [-22, 0, -30], height: 6.5, canopy: 3.2, color: 0x5f7d4c },
   { position: [22, 0, -30], height: 7.0, canopy: 3.5, color: 0x58794a },
   { position: [-10, 0, 19], height: 6.2, canopy: 2.8, color: 0x6c8452 },
-  { position: [10, 0, 19], height: 6.9, canopy: 3.1, color: 0x557449 },
 
   // Back forest
   { position: [-40, 0, 30], height: 8.5, canopy: 4.0, color: 0x4a6b3d },
@@ -199,8 +197,8 @@ const SKETCHFAB_PLAYGROUND_FALLBACK_MODEL_PATH = '/models/sketchfab/kids_playgro
 
 /** Garden shed — back-left of the house */
 const SHED_POSITION   = [-20, 0, 14] as const;
-/** Bus station — on the road side, left of the driveway */
-const BUS_STOP_POSITION = [-30, 0, -42] as const;
+/** Bus station — on the road side, closer to the house and driveway */
+const BUS_STOP_POSITION = [-22, 0, -36] as const;
 
 /** Perimeter garden lights around the estate — activated at night */
 const PERIMETER_LIGHT_POSITIONS: readonly [number, number, number][] = [
@@ -216,14 +214,13 @@ const PERIMETER_LIGHT_POSITIONS: readonly [number, number, number][] = [
 
 /** Picnic area — back-right of the house */
 const PICNIC_TABLE_POSITIONS: readonly { pos: [number,number,number]; rot: number }[] = [
-  { pos: [17, 0,  12], rot: 0 },
-  { pos: [21, 0,  16], rot: Math.PI * 0.5 },
+  { pos: [23, 0, 13], rot: 0 },  // напроти вогнища
 ];
 
 /** Bronze horse statues at the entrance — facing each other */
 const HORSE_STATUES: readonly { pos: [number,number,number]; rot: number }[] = [
-  { pos: [-2.8, 0, -13.5], rot: Math.PI * 0.5  },   // left statue — faces right (+X)
-  { pos: [ 2.8, 0, -13.5], rot: -Math.PI * 0.5 },   // right statue — faces left (-X)
+  { pos: [-2.8, 0, -13.5], rot: 0 },   // left statue — faces toward the right statue
+  { pos: [ 2.8, 0, -13.5], rot: Math.PI },   // right statue — faces toward the left statue
 ];
 
 
@@ -1142,9 +1139,11 @@ export class OutdoorEstateSystem {
         const container = new THREE.Group();
         container.name = 'BusStation';
         container.position.set(BUS_STOP_POSITION[0], BUS_STOP_POSITION[1], BUS_STOP_POSITION[2]);
-        container.rotation.y = Math.PI; // faces the road
+        container.rotation.y = Math.PI * 0.50; 
+        container.scale.setScalar(1.5); 
         container.add(model);
         this.root.add(container);
+        this.addFixedCuboid([BUS_STOP_POSITION[0], 2.25, BUS_STOP_POSITION[2]], [3.0, 2.25, 1.2]);
       } catch (e) { console.warn('[OutdoorEstateSystem] Bus station failed.', e); }
     });
 
@@ -1152,13 +1151,16 @@ export class OutdoorEstateSystem {
     await this.scheduler.enqueue('estate:fire-pit', 'idle', async () => {
       try {
         const model = await this.getModel('/picnic_area/game_ready_fire_pit_with_seating.glb');
-        this.prepareImportedModel(model, false);
+        this.prepareImportedModel(model, false, true); // true для двосторонніх матеріалів і фіксу альфи
         this.normalizeModel(model, { width: 4.5, depth: 4.5, height: 1.4 });
         const container = new THREE.Group();
         container.name = 'FirePitSeating';
-        container.position.set(16, 0, 14);
+        container.position.set(23, 0, 17);
+        container.rotation.y = Math.PI;
+        container.scale.setScalar(2.0);
         container.add(model);
         this.root.add(container);
+        this.addFixedCuboid([23, 1.4, 17], [3.5, 1.4, 3.5]); // Виправлено позицію та розмір коллайдера
       } catch (e) { console.warn('[OutdoorEstateSystem] Fire pit failed.', e); }
     });
 
@@ -1167,14 +1169,20 @@ export class OutdoorEstateSystem {
         const source = await this.getModel('/picnic_area/picnic_table_low_poly.glb');
         for (const [index, entry] of PICNIC_TABLE_POSITIONS.entries()) {
           const model = source.clone(true);
-          this.prepareImportedModel(model, false);
+          // Виправляємо перевернуту модель (180 градусів по X)
+          model.rotation.x = Math.PI;
+          model.updateMatrixWorld(true);
+          
+          this.prepareImportedModel(model, false, true); // true для двосторонніх матеріалів і фіксу альфи
           this.normalizeModel(model, { width: 2.4, depth: 1.0, height: 0.8 });
           const container = new THREE.Group();
           container.name = `PicnicTable_${index}`;
           container.position.set(...entry.pos);
-          container.rotation.y = entry.rot;
+          container.rotation.y = entry.rot + Math.PI;
+          container.scale.setScalar(2.0);
           container.add(model);
           this.root.add(container);
+          this.addFixedCuboid([entry.pos[0], 0.8, entry.pos[2]], [2.4, 0.8, 1.0]); // Виправлено розмір коллайдера
         }
       } catch (e) { console.warn('[OutdoorEstateSystem] Picnic tables failed.', e); }
     });
@@ -1227,6 +1235,7 @@ export class OutdoorEstateSystem {
           container.name = `HorseStatue_${index}`;
           container.position.set(...statue.pos);
           container.rotation.y = statue.rot;
+          container.scale.setScalar(2.5);
           container.add(model);
           this.root.add(container);
         }
