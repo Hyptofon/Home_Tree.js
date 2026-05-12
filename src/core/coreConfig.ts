@@ -12,12 +12,12 @@ export const GAME_LOOP_CONFIG = {
 /** Renderer defaults tuned for 90 FPS at 2K quality on capable hardware. */
 export const RENDERER_CONFIG = {
   ANTIALIAS: false,          // Disabled: SMAA ULTRA handles AA at the composer level
-  INITIAL_PIXEL_RATIO: 2.0,  // Start at 2K quality immediately
+  INITIAL_PIXEL_RATIO: 1.0,  // Start at 2K quality immediately
   MIN_PIXEL_RATIO: 1.0,      // Drop to 1.0 only under heavy load
-  MAX_PIXEL_RATIO: 2.5,      // Allow 2.5x on hi-DPI displays (4K monitors)
+  MAX_PIXEL_RATIO: 2.0,      // Allow 2.5x on hi-DPI displays (4K monitors)
   PIXEL_RATIO_STEP: 0.1,
-  QUALITY_SAMPLE_SECONDS: 0.4,  // Fast adaptation
-  TARGET_FRAME_MS: 11.1,        // 90 FPS target
+  QUALITY_SAMPLE_SECONDS: 1.5,  // Fast adaptation
+  TARGET_FRAME_MS: 16.6,        // 90 FPS target
   DOWNGRADE_FRAME_MS: 12.5,     // Drop quality if frame > ~80 FPS threshold
   UPGRADE_FRAME_MS: 10.0,       // Raise quality if frame < ~100 FPS
   TONE_MAPPING_EXPOSURE: 0.55,

@@ -292,8 +292,8 @@ export const HOUSE_MODEL_PLACEMENTS = [
 
 /** Quality-maxed defaults for 2K rendering. */
 export const HOUSE_RENDERING_CONFIG = {
-  TEXTURE_ANISOTROPY: 8,          // Maximum anisotropic filtering — crisp textures at glancing angles
-  PRELOAD_TEXTURE_BATCH_SIZE: 8,   // Slightly larger batches, textures already preloaded
+  TEXTURE_ANISOTROPY: 4,          // Maximum anisotropic filtering — crisp textures at glancing angles
+  PRELOAD_TEXTURE_BATCH_SIZE: 4,   // Slightly larger batches, textures already preloaded
   USE_HEIGHT_MAPS: true,           // Parallax height for tactile surface depth
   MODEL_ENV_INTENSITY: 0.88,       // Stronger HDRI reflection on PBR surfaces
   MODEL_OPAQUE_ROUGHNESS_MIN: 0.38,

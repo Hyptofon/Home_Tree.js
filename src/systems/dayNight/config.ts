@@ -26,7 +26,7 @@ export const SUN_CONFIG = {
   SHADOW_FAR: 100,             // Tighter frustum = better depth precision
   SHADOW_BIAS: -0.0003,        // Fine-tuned for 2K shadow map
   SHADOW_NORMAL_BIAS: 0.012,
-  SHADOW_CAMERA_EXTENT: 28,    // Tighter frustum covers only what the camera sees
+  SHADOW_CAMERA_EXTENT: 25,    // Tighter frustum covers only what the camera sees
   ORBIT_RADIUS: 400,
   COLOR_DAY: 0xfff1d6,
   COLOR_SUNSET: 0xff5500,
