@@ -4,11 +4,11 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import type { AssetStreamingScheduler } from '../../../core/AssetStreamingScheduler.ts';
 import { ModelLoader } from '../../../loaders/ModelLoader.ts';
 import { disposeObjectTree } from '../../../shared/three/dispose.ts';
-import { HOUSE_CONFIG, HOUSE_EDITABLE_ZONES } from '../architecturalHouseConfig.ts';
+import { HOUSE_EDITABLE_ZONES } from '../architecturalHouseConfig.ts';
 import type { DoorInteraction, WallSurface } from '../types.ts';
 import type { Disposable } from '../../../types/interfaces.ts';
 
-const HOUSE_MODEL_PATH = '/models/imported_house/house.gltf';
+const HOUSE_MODEL_PATH = '/models/imported_house/house_new.gltf';
 
 /** Maps GLTF mesh names from house.gltf to material descriptors. */
 const MESH_MATERIAL_MAP = {
@@ -23,7 +23,6 @@ const MESH_MATERIAL_MAP = {
 
   /** Concrete / stone base, paths, entry plates */
   Sockel: { color: 0xc8c0b2, roughness: 0.82, metalness: 0 },
-  mauer: { color: 0xc8c0b2, roughness: 0.82, metalness: 0 },
   Platten_Eingang: { color: 0xd6d0c4, roughness: 0.78, metalness: 0 },
   Platten_H_Eingang: { color: 0xd6d0c4, roughness: 0.78, metalness: 0 },
   Platten_Terras: { color: 0xd0c8bc, roughness: 0.80, metalness: 0 },
@@ -59,6 +58,9 @@ const MESH_MATERIAL_MAP = {
   Top_Right_Door: { color: 0x7a5230, roughness: 0.68, metalness: 0 },
   Top_Inner_Door_Left: { color: 0x7a5230, roughness: 0.68, metalness: 0 },
   Top_Inner_Door_Right: { color: 0x7a5230, roughness: 0.68, metalness: 0 },
+
+  /** Glass windows – semi-transparent */
+  F_Glas: { color: 0x8ec6e0, roughness: 0.05, metalness: 0.04 },
 } as const satisfies Record<string, { color: number; roughness: number; metalness: number }>;
 
 /** Glass parameters shared by all window panes. */
@@ -237,13 +239,13 @@ export class ImportedHouseSystem implements Disposable {
     rawBox.getSize(rawSize);
 
     // Determine the longest horizontal span regardless of axis orientation.
-    // The house width (X) after correct orientation should be the largest dimension.
     const longestSpan = Math.max(rawSize.x, rawSize.y, rawSize.z);
 
-    // Target: We originally scaled it to 2x estate width, but the user requested 
-    // to shrink it by 1.5x. So it becomes (2 / 1.5) = 1.333x of the estate width.
-    const estateWidth = HOUSE_CONFIG.HOUSE_BOUNDS.MAX_X - HOUSE_CONFIG.HOUSE_BOUNDS.MIN_X; // 24m
-    const targetWidth = (estateWidth * 2) / 1.5; // 32m
+    // house_new.gltf longest span ≈ 18 753 units → target 25 m gives scale ≈ 0.00133,
+    // identical to the old house.gltf (24 040 units → 32 m).
+    // Keeping a fixed target instead of deriving from estateWidth avoids
+    // the house growing/shrinking if the model is re-exported at a different unit scale.
+    const targetWidth = 25;
     const scaleFactor = targetWidth / longestSpan;
     model.scale.setScalar(scaleFactor);
     model.updateMatrixWorld(true);
@@ -253,11 +255,11 @@ export class ImportedHouseSystem implements Disposable {
     const center = new THREE.Vector3();
     scaledBox.getCenter(center);
 
-    // Centre horizontally, sit exactly on the ground
+
     model.position.set(
       -center.x,
       -scaledBox.min.y,
-      -center.z,
+      -center.z + 5,
     );
 
     model.name = 'ImportedHouseModel';
