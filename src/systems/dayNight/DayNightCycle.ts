@@ -167,8 +167,8 @@ export class DayNightCycle implements Updatable, Disposable {
       this.clouds.group,
     );
 
-    // Initialise fog
-    this.scene.fog = new THREE.FogExp2(0xc9e8ff, 0.0008);
+    // Initialise fog to hide the edges of the map
+    this.scene.fog = new THREE.Fog(0xc9e8ff, 70, 120);
 
     // Apply initial state synchronously
     this.applyPhaseState(this.time, 0);
@@ -353,7 +353,12 @@ export class DayNightCycle implements Updatable, Disposable {
     _groundColor.copy(_fogColor).lerp(_blackColor, 0.6);
 
     const fogDensity = lerp(curDef.fogDensity, nextDef.fogDensity, blend);
-    if (this.scene.fog instanceof THREE.FogExp2) {
+    if (this.scene.fog instanceof THREE.Fog) {
+      this.scene.fog.color.copy(_fogColor);
+      // Fog remains strictly at the edges of the map regardless of time of day
+      this.scene.fog.near = 70;
+      this.scene.fog.far = 120;
+    } else if (this.scene.fog instanceof THREE.FogExp2) {
       this.scene.fog.color.copy(_fogColor);
       this.scene.fog.density = fogDensity;
     }

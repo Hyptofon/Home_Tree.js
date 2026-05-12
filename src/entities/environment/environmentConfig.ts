@@ -6,7 +6,7 @@
  */
 export const ENVIRONMENT_CONFIG = {
   FLOOR: {
-    SIZE: 140,
+    SIZE: 350,
     SEGMENTS: 1,
     THICKNESS: 1,
     COLOR: 0x263026,

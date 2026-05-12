@@ -1151,7 +1151,7 @@ export class OutdoorEstateSystem {
     await this.scheduler.enqueue('estate:fire-pit', 'idle', async () => {
       try {
         const model = await this.getModel('/picnic_area/game_ready_fire_pit_with_seating.glb');
-        this.prepareImportedModel(model, false, true); // true для двосторонніх матеріалів і фіксу альфи
+        this.prepareImportedModel(model, true, true); // castShadow=true + двосторонні матеріали
         this.normalizeModel(model, { width: 4.5, depth: 4.5, height: 1.4 });
         const container = new THREE.Group();
         container.name = 'FirePitSeating';
@@ -1173,7 +1173,7 @@ export class OutdoorEstateSystem {
           model.rotation.x = Math.PI;
           model.updateMatrixWorld(true);
           
-          this.prepareImportedModel(model, false, true); // true для двосторонніх матеріалів і фіксу альфи
+          this.prepareImportedModel(model, true, true); // castShadow=true + двосторонні матеріали
           this.normalizeModel(model, { width: 2.4, depth: 1.0, height: 0.8 });
           const container = new THREE.Group();
           container.name = `PicnicTable_${index}`;
@@ -1185,6 +1185,80 @@ export class OutdoorEstateSystem {
           this.addFixedCuboid([entry.pos[0], 0.8, entry.pos[2]], [2.4, 0.8, 1.0]); // Виправлено розмір коллайдера
         }
       } catch (e) { console.warn('[OutdoorEstateSystem] Picnic tables failed.', e); }
+    });
+
+    // ── 3.1. Rock set (garden & outer decor) ─────────────────────────────────
+    await this.scheduler.enqueue('estate:rock-set', 'idle', async () => {
+      try {
+        const source = await this.getModel('/stones/low_poly_rock_set.glb');
+        const container = new THREE.Group();
+        container.name = 'EnvironmentRocks';
+        
+        // 1. One rock set near the pond (inside)
+        const innerRock = source.clone(true);
+        this.prepareImportedModel(innerRock, true);
+        this.normalizeModel(innerRock, { width: 4.0, depth: 3.0, height: 1.5 });
+        innerRock.position.set(16, 0, 4);
+        innerRock.rotation.y = Math.PI * 0.3;
+        container.add(innerRock);
+        this.addFixedCuboid([16, 0.75, 4], [2.0, 0.75, 1.5]);
+
+        // 2. Many rocks outside the fences to decorate the edges
+        const randomPos = (min: number, max: number) => min + Math.random() * (max - min);
+        for(let i=0; i<60; i++) {
+            let x=0, z=0;
+            let valid = false;
+            while (!valid) {
+                const r = Math.random();
+                if (r < 0.25) { // Left outside
+                    x = randomPos(-160, -32);
+                    z = randomPos(-160, 160);
+                } else if (r < 0.5) { // Right outside
+                    x = randomPos(32, 160);
+                    z = randomPos(-160, 160);
+                } else if (r < 0.75) { // Front outside (past the road)
+                    x = randomPos(-160, 160);
+                    z = randomPos(-160, -48);
+                } else { // Back outside
+                    x = randomPos(-160, 160);
+                    z = randomPos(26, 160);
+                }
+
+                // Strictly avoid the road (-48 to -36) and driveway
+                if (z > -48 && z < -36) continue;
+                if (x > 5 && x < 13 && z > -36 && z < -14) continue;
+                
+                valid = true;
+            }
+
+            const rock = source.clone(true);
+            const scale = 1.0 + Math.random() * 2.0; // scale from 1.0x to 3.0x
+            this.prepareImportedModel(rock, true);
+            this.normalizeModel(rock, { width: 4.0 * scale, depth: 3.0 * scale, height: 1.5 * scale });
+            
+            rock.position.set(x, -0.4, z); // slight sink into ground
+            rock.rotation.set((Math.random() - 0.5) * 0.2, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.2);
+            container.add(rock);
+        }
+
+        this.root.add(container);
+      } catch (e) { console.warn('[OutdoorEstateSystem] Rock set failed.', e); }
+    });
+
+    // ── 3.2. User Car (Mitsubishi Evo) on Driveway ───────────────────────────
+    await this.scheduler.enqueue('estate:user-car', 'idle', async () => {
+      try {
+        const model = await this.getModel('/models/my_car/mitsubishi_evo.glb');
+        this.prepareImportedModel(model, true);
+        this.normalizeModel(model, { width: 1.85 * 1.5, depth: 4.5 * 1.5, height: 1.35 * 1.5 });
+        const container = new THREE.Group();
+        container.name = 'UserCar_MitsubishiEvo';
+        container.position.set(DRIVEWAY_X, 0, -22); // На в'їзді в дім
+        container.rotation.y = Math.PI; // Face towards the road
+        container.add(model);
+        this.root.add(container);
+        this.addFixedCuboid([DRIVEWAY_X, 0.975, -22], [1.5, 0.975, 3.45]); // Колайдер для авто (збільшений в 1.5 рази)
+      } catch (e) { console.warn('[OutdoorEstateSystem] Mitsubishi Evo failed.', e); }
     });
 
     // ── 4. Perimeter garden lights (night-reactive) ──────────────────────────

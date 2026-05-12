@@ -59,8 +59,7 @@ export class Environment {
     this.rigidBodies.length = 0;
     this.group.clear();
   }
-
-  /** Builds the ground plane visual and its fixed cuboid collider. */
+  /** Builds the ground plane visual and its fixed cuboid collider. */
   private buildFloor(): void {
     const { FLOOR } = ENVIRONMENT_CONFIG;
     const halfSize = FLOOR.SIZE / 2;
@@ -72,12 +71,29 @@ export class Environment {
       FLOOR.SEGMENTS,
       FLOOR.SEGMENTS,
     );
+
+    const textureLoader = new THREE.TextureLoader();
+    const map = textureLoader.load('/textures/terrain/leafy_grass_diff_1k.jpg');
+    const normalMap = textureLoader.load('/textures/terrain/leafy_grass_normal_1k.jpg');
+    const aoMap = textureLoader.load('/textures/terrain/leafy_grass_arm_1k.jpg');
+
+    [map, normalMap, aoMap].forEach((tex) => {
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(FLOOR.SIZE / 4, FLOOR.SIZE / 4); // Scale texture based on floor size
+      tex.colorSpace = tex === map ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+    });
+
     const material = new THREE.MeshStandardMaterial({
-      color: FLOOR.COLOR,
-      roughness: FLOOR.ROUGHNESS,
-      metalness: FLOOR.METALNESS,
+      color: 0x8a9670, // Slightly tint the grass to match the estate
+      map,
+      normalMap,
+      aoMap,
+      roughness: 0.9,
+      metalness: 0,
       envMapIntensity: 0.18,
     });
+
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = 'EnvironmentFloor';
     mesh.position.y = -0.12;
