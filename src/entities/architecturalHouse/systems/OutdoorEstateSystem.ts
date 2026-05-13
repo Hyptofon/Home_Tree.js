@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import type { Vector3Tuple } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 
 import type { AssetStreamingScheduler } from '../../../core/AssetStreamingScheduler.ts';
 import { ModelLoader } from '../../../loaders/ModelLoader.ts';
@@ -69,6 +71,26 @@ type VegetationPlacement = {
 };
 
 
+type HeroFxOrb = {
+  readonly mesh: THREE.Object3D;
+  readonly basePosition: THREE.Vector3;
+  readonly phase: number;
+  readonly orbitRadius: number;
+  readonly orbitSpeed: number;
+  readonly verticalAmplitude: number;
+};
+
+type HeroFx = {
+  readonly root: THREE.Group;
+  readonly textMaterial: THREE.ShaderMaterial;
+  readonly glowMaterial: THREE.MeshBasicMaterial;
+  readonly rings: readonly THREE.Object3D[];
+  readonly orbs: readonly HeroFxOrb[];
+  readonly particles: THREE.Points;
+  readonly particlesMaterial: THREE.PointsMaterial;
+};
+
+
 
 const ROAD_Z = -42;
 const ROAD_LENGTH = 132;
@@ -124,16 +146,46 @@ const TREE_LAYOUT = [
   { position: [55, 0, 5], height: 10.0, canopy: 4.8, color: 0x2e4725 },
   { position: [48, 0, 15], height: 9.6, canopy: 4.5, color: 0x3d5c31 },
 
-  // Across street
-  { position: [-40, 0, -50], height: 8.5, canopy: 4.0, color: 0x4a6b3d },
-  { position: [-20, 0, -48], height: 9.2, canopy: 4.5, color: 0x3d5c31 },
-  { position: [0, 0, -52], height: 8.8, canopy: 4.2, color: 0x4a6b3d },
-  { position: [20, 0, -48], height: 9.5, canopy: 4.6, color: 0x3d5c31 },
-  { position: [40, 0, -50], height: 8.2, canopy: 3.9, color: 0x4a6b3d },
-  { position: [-35, 0, -60], height: 10.1, canopy: 5.0, color: 0x2e4725 },
-  { position: [-10, 0, -65], height: 9.8, canopy: 4.8, color: 0x3d5c31 },
-  { position: [15, 0, -58], height: 10.5, canopy: 5.2, color: 0x2e4725 },
-  { position: [35, 0, -62], height: 9.0, canopy: 4.4, color: 0x4a6b3d },
+  // Backdrop for 3D text entrance
+  // Keep the direct hero-sign corridor clean:
+  // text is at z=-50, so no tall trees in x [-34..34], z [-66..-44].
+  // Trees below are pushed to the sides or far behind the text.
+  { position: [-58, 0, -58], height: 9.0, canopy: 4.2, color: 0x3d5c31 },
+  { position: [-46, 0, -66], height: 9.5, canopy: 4.5, color: 0x4a6b3d },
+  { position: [46, 0, -66], height: 8.8, canopy: 4.3, color: 0x3d5c31 },
+  { position: [58, 0, -58], height: 9.2, canopy: 4.4, color: 0x4a6b3d },
+
+  // Dense cinematic forest background behind the hero sign.
+  // This fills the empty horizon without clipping through the letters.
+  { position: [-78, 0, -76], height: 9.2, canopy: 4.5, color: 0x3d5c31 },
+  { position: [-64, 0, -82], height: 8.5, canopy: 4.0, color: 0x4a6b3d },
+  { position: [-50, 0, -88], height: 10.0, canopy: 4.8, color: 0x2e4725 },
+  { position: [-34, 0, -94], height: 9.4, canopy: 4.4, color: 0x3d5c31 },
+  { position: [-18, 0, -102], height: 8.9, canopy: 4.1, color: 0x4a6b3d },
+  { position: [0, 0, -110], height: 10.6, canopy: 5.2, color: 0x2e4725 },
+  { position: [18, 0, -102], height: 9.1, canopy: 4.3, color: 0x3d5c31 },
+  { position: [34, 0, -94], height: 9.7, canopy: 4.6, color: 0x4a6b3d },
+  { position: [50, 0, -88], height: 10.2, canopy: 4.9, color: 0x2e4725 },
+  { position: [64, 0, -82], height: 8.8, canopy: 4.2, color: 0x4a6b3d },
+  { position: [78, 0, -76], height: 9.5, canopy: 4.7, color: 0x3d5c31 },
+
+  // Second forest layer for depth/parallax.
+  { position: [-92, 0, -102], height: 11.0, canopy: 5.2, color: 0x2e4725 },
+  { position: [-72, 0, -112], height: 10.1, canopy: 4.8, color: 0x3d5c31 },
+  { position: [-52, 0, -122], height: 9.6, canopy: 4.6, color: 0x4a6b3d },
+  { position: [-28, 0, -132], height: 10.4, canopy: 5.1, color: 0x2e4725 },
+  { position: [0, 0, -138], height: 9.8, canopy: 4.7, color: 0x3d5c31 },
+  { position: [28, 0, -132], height: 10.7, canopy: 5.1, color: 0x2e4725 },
+  { position: [52, 0, -122], height: 9.4, canopy: 4.5, color: 0x4a6b3d },
+  { position: [72, 0, -112], height: 10.2, canopy: 4.9, color: 0x3d5c31 },
+  { position: [92, 0, -102], height: 11.2, canopy: 5.3, color: 0x2e4725 },
+
+  // Side fillers near the road edges, far enough from the text silhouette.
+  { position: [-96, 0, -54], height: 8.6, canopy: 4.0, color: 0x4a6b3d },
+  { position: [-84, 0, -62], height: 9.8, canopy: 4.6, color: 0x3d5c31 },
+  { position: [84, 0, -62], height: 9.6, canopy: 4.5, color: 0x3d5c31 },
+  { position: [96, 0, -54], height: 8.8, canopy: 4.1, color: 0x4a6b3d },
+  
 ] as const;
 
 const LAMP_LAYOUT = [
@@ -259,6 +311,7 @@ export class OutdoorEstateSystem {
   private trafficInitialized = false;
   private elapsed = 0;
   private carUpdateAccumulator = 0;
+  private heroFx?: HeroFx;
 
   /**
    * @param world - Active Rapier world used for coarse exterior colliders.
@@ -362,6 +415,7 @@ export class OutdoorEstateSystem {
     await this.loadSketchfabPlayground();
     await this.loadStaticProps();
     await this.buildGrassField();
+    await this.load3DText();
 
     try {
       await this.scheduler.enqueue('estate:custom-fence', 'background', () => this.loadCustomFence());
@@ -394,6 +448,8 @@ export class OutdoorEstateSystem {
       this.updateCars(this.carUpdateAccumulator, nightFactor);
       this.carUpdateAccumulator = 0;
     }
+
+    this.updateHeroFx(delta, timeOfDay);
   }
 
   /** Removes exterior colliders and GPU resources owned by this system. */
@@ -654,6 +710,395 @@ export class OutdoorEstateSystem {
       console.log(`[OutdoorEstateSystem] Generated ${totalInstances} grass instances.`);
     } catch (error) {
       console.warn('[OutdoorEstateSystem] Grass field failed to load.', error);
+    }
+  }
+
+  private async load3DText(): Promise<void> {
+    try {
+      const fontLoader = new FontLoader();
+      const font = await new Promise<any>((resolve, reject) => {
+        fontLoader.load('/fonts/helvetiker_regular.typeface.json', resolve, undefined, reject);
+      });
+
+      const heroRoot = new THREE.Group();
+      heroRoot.name = 'HeroHolographicEntranceSign';
+      heroRoot.position.set(0, 2.1, -50);
+      this.root.add(heroRoot);
+
+      const textGeometry = new TextGeometry('Serene House', {
+        font,
+        size: 3,
+        depth: 0.52,
+        curveSegments: 14,
+        bevelEnabled: true,
+        bevelThickness: 0.08,
+        bevelSize: 0.045,
+        bevelOffset: 0,
+        bevelSegments: 5,
+      });
+
+      textGeometry.center();
+      textGeometry.computeBoundingBox();
+      textGeometry.computeVertexNormals();
+
+      const textMaterial = this.createHolographicTextMaterial();
+
+      const text = new THREE.Mesh(textGeometry, textMaterial);
+      text.name = 'HeroHolographicText';
+      text.castShadow = true;
+      text.receiveShadow = false;
+      heroRoot.add(text);
+
+      const glowMaterial = new THREE.MeshBasicMaterial({
+        name: 'HeroTextSoftGlow',
+        color: 0x8be9ff,
+        transparent: true,
+        opacity: 0.22,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+
+      const glowText = new THREE.Mesh(textGeometry.clone(), glowMaterial);
+      glowText.name = 'HeroTextBackGlow';
+      glowText.position.set(0, 0, -0.08);
+      glowText.scale.set(1.025, 1.025, 1.025);
+      heroRoot.add(glowText);
+
+      const rings = this.createHeroEnergyRings(heroRoot);
+      const orbs = this.createHeroFloatingCrystals(heroRoot);
+      const { particles, particlesMaterial } = this.createHeroSparkParticles(heroRoot);
+
+      const underline = this.createHeroGradientUnderline();
+      underline.position.set(0, -1.95, 0.05);
+      heroRoot.add(underline);
+
+      this.heroFx = {
+        root: heroRoot,
+        textMaterial,
+        glowMaterial,
+        rings,
+        orbs,
+        particles,
+        particlesMaterial,
+      };
+
+      console.log('[OutdoorEstateSystem] Holographic hero text loaded.');
+    } catch (error) {
+      console.warn('[OutdoorEstateSystem] 3D text loading failed.', error);
+    }
+  }
+
+  private createHolographicTextMaterial(): THREE.ShaderMaterial {
+    return new THREE.ShaderMaterial({
+      name: 'HeroHolographicGradientText',
+      transparent: false,
+      depthWrite: true,
+      uniforms: {
+        uTime: { value: 0 },
+        uColorA: { value: new THREE.Color(0x6ee7ff) },
+        uColorB: { value: new THREE.Color(0xb27cff) },
+        uColorC: { value: new THREE.Color(0xffd36e) },
+        uFresnelColor: { value: new THREE.Color(0xffffff) },
+      },
+      vertexShader: /* glsl */ `
+        varying vec2 vUv;
+        varying vec3 vNormalW;
+        varying vec3 vViewDirW;
+        varying vec3 vWorldPosition;
+
+        void main() {
+          vUv = uv;
+
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPosition.xyz;
+
+          vNormalW = normalize(mat3(modelMatrix) * normal);
+          vViewDirW = normalize(cameraPosition - worldPosition.xyz);
+
+          gl_Position = projectionMatrix * viewMatrix * worldPosition;
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        uniform float uTime;
+        uniform vec3 uColorA;
+        uniform vec3 uColorB;
+        uniform vec3 uColorC;
+        uniform vec3 uFresnelColor;
+
+        varying vec2 vUv;
+        varying vec3 vNormalW;
+        varying vec3 vViewDirW;
+        varying vec3 vWorldPosition;
+
+        void main() {
+          float wave = sin((vWorldPosition.x * 0.85) + (uTime * 1.45)) * 0.5 + 0.5;
+          float vertical = sin((vWorldPosition.y * 1.35) - (uTime * 1.1)) * 0.5 + 0.5;
+
+          vec3 gradientAB = mix(uColorA, uColorB, wave);
+          vec3 gradient = mix(gradientAB, uColorC, vertical * 0.45);
+
+          float fresnel = pow(1.0 - max(dot(normalize(vNormalW), normalize(vViewDirW)), 0.0), 2.2);
+          vec3 finalColor = gradient + uFresnelColor * fresnel * 0.75;
+
+          float scanline = sin((vWorldPosition.y * 18.0) + (uTime * 5.0)) * 0.5 + 0.5;
+          finalColor += scanline * 0.045;
+
+          gl_FragColor = vec4(finalColor, 1.0);
+        }
+      `,
+    });
+  }
+
+  private createHeroEnergyRings(parent: THREE.Group): THREE.Object3D[] {
+    const rings: THREE.Object3D[] = [];
+
+    const ringMaterialA = new THREE.MeshBasicMaterial({
+      name: 'HeroEnergyRingCyan',
+      color: 0x79eaff,
+      transparent: true,
+      opacity: 0.34,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    const ringMaterialB = new THREE.MeshBasicMaterial({
+      name: 'HeroEnergyRingViolet',
+      color: 0xb98cff,
+      transparent: true,
+      opacity: 0.26,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    const configs = [
+      { radius: 5.8, tube: 0.018, rot: [0.16, 0.0, 0.03], mat: ringMaterialA },
+      { radius: 6.6, tube: 0.014, rot: [-0.08, 0.0, -0.08], mat: ringMaterialB },
+      { radius: 4.9, tube: 0.012, rot: [0.28, 0.0, 0.12], mat: ringMaterialA },
+    ] as const;
+
+    for (const [index, config] of configs.entries()) {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(config.radius, config.tube, 8, 180),
+        config.mat,
+      );
+
+      ring.name = `HeroThinEnergyRing_${index}`;
+      ring.rotation.set(config.rot[0], config.rot[1], config.rot[2]);
+      ring.position.set(0, 0.1, -0.35 - index * 0.04);
+      ring.renderOrder = 2;
+
+      parent.add(ring);
+      rings.push(ring);
+    }
+
+    return rings;
+  }
+
+  private createHeroFloatingCrystals(parent: THREE.Group): HeroFxOrb[] {
+    const orbs: HeroFxOrb[] = [];
+
+    const crystalGeometry = new THREE.IcosahedronGeometry(0.22, 1);
+    const orbGeometry = new THREE.SphereGeometry(0.06, 12, 8);
+
+    const crystalMaterials = [
+      new THREE.MeshStandardMaterial({
+        name: 'HeroCrystalCyan',
+        color: 0x74eaff,
+        emissive: 0x2ab8ff,
+        emissiveIntensity: 1.1,
+        roughness: 0.18,
+        metalness: 0.12,
+        envMapIntensity: 1.4,
+      }),
+      new THREE.MeshStandardMaterial({
+        name: 'HeroCrystalViolet',
+        color: 0xb891ff,
+        emissive: 0x7d4dff,
+        emissiveIntensity: 1.0,
+        roughness: 0.2,
+        metalness: 0.08,
+        envMapIntensity: 1.35,
+      }),
+      new THREE.MeshStandardMaterial({
+        name: 'HeroCrystalGold',
+        color: 0xffd982,
+        emissive: 0xff9d3b,
+        emissiveIntensity: 0.85,
+        roughness: 0.24,
+        metalness: 0.1,
+        envMapIntensity: 1.25,
+      }),
+    ];
+
+    const smallOrbMaterial = new THREE.MeshBasicMaterial({
+      name: 'HeroSmallLightOrbs',
+      color: 0xdff8ff,
+      transparent: true,
+      opacity: 0.82,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    for (let index = 0; index < 34; index += 1) {
+      const isCrystal = index % 3 !== 0;
+      const mesh = new THREE.Mesh(
+        isCrystal ? crystalGeometry : orbGeometry,
+        isCrystal
+          ? crystalMaterials[index % crystalMaterials.length]
+          : smallOrbMaterial,
+      );
+
+      mesh.name = isCrystal ? `HeroFloatingCrystal_${index}` : `HeroLightOrb_${index}`;
+
+      const angle = (index / 34) * Math.PI * 2;
+      const sideOffset = index % 2 === 0 ? -1 : 1;
+
+      const basePosition = new THREE.Vector3(
+        Math.cos(angle) * THREE.MathUtils.randFloat(4.7, 8.8),
+        THREE.MathUtils.randFloat(-1.45, 2.25),
+        THREE.MathUtils.randFloat(-0.9, 1.6) + sideOffset * 0.12,
+      );
+
+      mesh.position.copy(basePosition);
+
+      const scale = THREE.MathUtils.randFloat(0.72, 1.45);
+      mesh.scale.setScalar(scale);
+
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
+
+      parent.add(mesh);
+
+      orbs.push({
+        mesh,
+        basePosition,
+        phase: Math.random() * Math.PI * 2,
+        orbitRadius: THREE.MathUtils.randFloat(0.18, 0.62),
+        orbitSpeed: THREE.MathUtils.randFloat(0.45, 1.15),
+        verticalAmplitude: THREE.MathUtils.randFloat(0.12, 0.42),
+      });
+    }
+
+    return orbs;
+  }
+
+  private createHeroSparkParticles(parent: THREE.Group): {
+    particles: THREE.Points;
+    particlesMaterial: THREE.PointsMaterial;
+  } {
+    const particleCount = 180;
+    const positions = new Float32Array(particleCount * 3);
+
+    for (let index = 0; index < particleCount; index += 1) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = THREE.MathUtils.randFloat(3.8, 9.6);
+
+      positions[index * 3 + 0] = Math.cos(angle) * radius;
+      positions[index * 3 + 1] = THREE.MathUtils.randFloat(-1.75, 2.85);
+      positions[index * 3 + 2] = Math.sin(angle) * THREE.MathUtils.randFloat(0.2, 1.65);
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    const particlesMaterial = new THREE.PointsMaterial({
+      name: 'HeroSparkParticlesMaterial',
+      color: 0xcdf7ff,
+      size: 0.055,
+      transparent: true,
+      opacity: 0.76,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      sizeAttenuation: true,
+    });
+
+    const particles = new THREE.Points(geometry, particlesMaterial);
+    particles.name = 'HeroSparkParticles';
+    particles.renderOrder = 3;
+
+    parent.add(particles);
+
+    return { particles, particlesMaterial };
+  }
+
+  private createHeroGradientUnderline(): THREE.Mesh {
+    const geometry = new THREE.PlaneGeometry(9.4, 0.055, 1, 1);
+
+    const material = new THREE.ShaderMaterial({
+      name: 'HeroGradientUnderlineMaterial',
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      uniforms: {
+        uColorA: { value: new THREE.Color(0x6ee7ff) },
+        uColorB: { value: new THREE.Color(0xb27cff) },
+      },
+      vertexShader: /* glsl */ `
+        varying vec2 vUv;
+
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        uniform vec3 uColorA;
+        uniform vec3 uColorB;
+        varying vec2 vUv;
+
+        void main() {
+          float centerFade = smoothstep(0.0, 0.5, vUv.x) * smoothstep(1.0, 0.5, vUv.x);
+          vec3 color = mix(uColorA, uColorB, vUv.x);
+
+          gl_FragColor = vec4(color, centerFade * 0.9);
+        }
+      `,
+    });
+
+    const underline = new THREE.Mesh(geometry, material);
+    underline.name = 'HeroGradientUnderline';
+    underline.renderOrder = 4;
+
+    return underline;
+  }
+
+  private updateHeroFx(delta: number, timeOfDay: number): void {
+    if (!this.heroFx) return;
+
+    const nightFactor = this.resolveNightFactor(timeOfDay);
+    const time = this.elapsed;
+
+    this.heroFx.textMaterial.uniforms.uTime.value = time;
+
+    this.heroFx.root.rotation.y = Math.sin(time * 0.18) * 0.025;
+
+    this.heroFx.glowMaterial.opacity = THREE.MathUtils.lerp(
+      0.16,
+      0.34,
+      0.5 + Math.sin(time * 1.2) * 0.5,
+    );
+
+    this.heroFx.particles.rotation.y += delta * 0.075;
+    this.heroFx.particles.rotation.z = Math.sin(time * 0.16) * 0.035;
+    this.heroFx.particlesMaterial.opacity = THREE.MathUtils.lerp(0.46, 0.86, nightFactor);
+
+    for (const [index, ring] of this.heroFx.rings.entries()) {
+      const direction = index % 2 === 0 ? 1 : -1;
+      ring.rotation.z += delta * direction * (0.08 + index * 0.025);
+      ring.rotation.y = Math.sin(time * 0.22 + index) * 0.08;
+    }
+
+    for (const orb of this.heroFx.orbs) {
+      const orbitTime = time * orb.orbitSpeed + orb.phase;
+
+      orb.mesh.position.set(
+        orb.basePosition.x + Math.cos(orbitTime) * orb.orbitRadius,
+        orb.basePosition.y + Math.sin(orbitTime * 1.35) * orb.verticalAmplitude,
+        orb.basePosition.z + Math.sin(orbitTime) * orb.orbitRadius * 0.45,
+      );
+
+      orb.mesh.rotation.x += delta * 0.7;
+      orb.mesh.rotation.y += delta * 0.95;
     }
   }
 
@@ -1305,58 +1750,116 @@ export class OutdoorEstateSystem {
       } catch (e) { console.warn('[OutdoorEstateSystem] Picnic tables failed.', e); }
     });
 
-    // ── 3.1. Rock set (garden & outer decor) ─────────────────────────────────
+    // ── 3.1. Rock set (background decor, hero text safe) ───────────────────────
     await this.scheduler.enqueue('estate:rock-set', 'idle', async () => {
       try {
         const source = await this.getModel('/stones/low_poly_rock_set.glb');
         const container = new THREE.Group();
         container.name = 'EnvironmentRocks';
-        
-        // 1. One rock set near the pond (inside)
-        const innerRock = source.clone(true);
-        this.prepareImportedModel(innerRock, true);
-        this.normalizeModel(innerRock, { width: 4.0, depth: 3.0, height: 1.5 });
-        innerRock.position.set(16, 0, 4);
-        innerRock.rotation.y = Math.PI * 0.3;
-        container.add(innerRock);
-        this.addFixedCuboid([16, 0.75, 4], [2.0, 0.75, 1.5]);
 
-        // 2. Many rocks outside the fences to decorate the edges
-        const randomPos = (min: number, max: number) => min + Math.random() * (max - min);
-        for(let i=0; i<60; i++) {
-            let x=0, z=0;
-            let valid = false;
-            while (!valid) {
-                const r = Math.random();
-                if (r < 0.25) { // Left outside
-                    x = randomPos(-160, -32);
-                    z = randomPos(-160, 160);
-                } else if (r < 0.5) { // Right outside
-                    x = randomPos(32, 160);
-                    z = randomPos(-160, 160);
-                } else if (r < 0.75) { // Front outside (past the road)
-                    x = randomPos(-160, 160);
-                    z = randomPos(-160, -48);
-                } else { // Back outside
-                    x = randomPos(-160, 160);
-                    z = randomPos(26, 160);
-                }
+        const randomPos = (min: number, max: number): number => min + Math.random() * (max - min);
 
-                // Strictly avoid the road (-48 to -36) and driveway
-                if (z > -48 && z < -36) continue;
-                if (x > 5 && x < 13 && z > -36 && z < -14) continue;
-                
-                valid = true;
+        const isHeroTextClearZone = (x: number, z: number): boolean => {
+          // The hero text is placed at z=-50.
+          // Keep this corridor empty so rocks never appear inside/behind the letters.
+          return x > -36 && x < 36 && z > -72 && z < -42;
+        };
+
+        const isRoadOrDrivewayZone = (x: number, z: number): boolean => {
+          if (z > -48 && z < -36) return true;
+          if (x > 5 && x < 13 && z > -36 && z < -14) return true;
+          return false;
+        };
+
+        const addRock = (
+          x: number,
+          z: number,
+          scaleMultiplier: number,
+          yOffset = -0.42,
+        ): void => {
+          const rock = source.clone(true);
+          this.prepareImportedModel(rock, true);
+          this.normalizeModel(rock, {
+            width: 4.0 * scaleMultiplier,
+            depth: 3.0 * scaleMultiplier,
+            height: 1.5 * scaleMultiplier,
+          });
+
+          rock.position.set(x, yOffset, z);
+          rock.rotation.set(
+            THREE.MathUtils.randFloat(-0.12, 0.12),
+            Math.random() * Math.PI * 2,
+            THREE.MathUtils.randFloat(-0.12, 0.12),
+          );
+
+          container.add(rock);
+        };
+
+        // Decorative rock clusters: only to the sides and far behind the text.
+        // Nothing is placed in the center of the hero sign anymore.
+        const heroSafeRockClusters: readonly { x: number; z: number; scale: number }[] = [
+          { x: -48, z: -61, scale: 1.25 },
+          { x: -57, z: -72, scale: 1.75 },
+          { x: -70, z: -86, scale: 2.1 },
+          { x: -36, z: -82, scale: 1.35 },
+
+          { x: 48, z: -61, scale: 1.25 },
+          { x: 57, z: -72, scale: 1.75 },
+          { x: 70, z: -86, scale: 2.1 },
+          { x: 36, z: -82, scale: 1.35 },
+
+          { x: -20, z: -96, scale: 1.15 },
+          { x: 0, z: -112, scale: 1.55 },
+          { x: 22, z: -96, scale: 1.2 },
+        ];
+
+        for (const cluster of heroSafeRockClusters) {
+          addRock(
+            cluster.x + THREE.MathUtils.randFloatSpread(2.4),
+            cluster.z + THREE.MathUtils.randFloatSpread(2.0),
+            cluster.scale,
+          );
+        }
+
+        // Extra background rocks for a richer horizon.
+        // Random placement has a strict hero-text exclusion zone.
+        for (let i = 0; i < 90; i += 1) {
+          let x = 0;
+          let z = 0;
+          let valid = false;
+          let attempts = 0;
+
+          while (!valid && attempts < 40) {
+            attempts += 1;
+            const r = Math.random();
+
+            if (r < 0.28) {
+              // Left background
+              x = randomPos(-150, -42);
+              z = randomPos(-116, -54);
+            } else if (r < 0.56) {
+              // Right background
+              x = randomPos(42, 150);
+              z = randomPos(-116, -54);
+            } else if (r < 0.82) {
+              // Far forest line behind the hero text
+              x = randomPos(-150, 150);
+              z = randomPos(-155, -92);
+            } else {
+              // Other outer decoration
+              x = Math.random() < 0.5 ? randomPos(-160, -32) : randomPos(32, 160);
+              z = randomPos(-160, 160);
             }
 
-            const rock = source.clone(true);
-            const scale = 1.0 + Math.random() * 2.0; // scale from 1.0x to 3.0x
-            this.prepareImportedModel(rock, true);
-            this.normalizeModel(rock, { width: 4.0 * scale, depth: 3.0 * scale, height: 1.5 * scale });
-            
-            rock.position.set(x, -0.4, z); // slight sink into ground
-            rock.rotation.set((Math.random() - 0.5) * 0.2, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.2);
-            container.add(rock);
+            if (isRoadOrDrivewayZone(x, z)) continue;
+            if (isHeroTextClearZone(x, z)) continue;
+
+            valid = true;
+          }
+
+          if (!valid) continue;
+
+          addRock(x, z, THREE.MathUtils.randFloat(0.65, 2.35));
         }
 
         this.root.add(container);
