@@ -895,92 +895,124 @@ export class OutdoorEstateSystem {
   }
 
   private createHeroFloatingCrystals(parent: THREE.Group): HeroFxOrb[] {
-    const orbs: HeroFxOrb[] = [];
+  const orbs: HeroFxOrb[] = [];
 
-    const crystalGeometry = new THREE.IcosahedronGeometry(0.22, 1);
-    const orbGeometry = new THREE.SphereGeometry(0.06, 12, 8);
+  const crystalGeometry = new THREE.IcosahedronGeometry(0.18, 1);
+  const orbGeometry = new THREE.SphereGeometry(0.045, 12, 8);
 
-    const crystalMaterials = [
-      new THREE.MeshStandardMaterial({
-        name: 'HeroCrystalCyan',
-        color: 0x74eaff,
-        emissive: 0x2ab8ff,
-        emissiveIntensity: 1.1,
-        roughness: 0.18,
-        metalness: 0.12,
-        envMapIntensity: 1.4,
-      }),
-      new THREE.MeshStandardMaterial({
-        name: 'HeroCrystalViolet',
-        color: 0xb891ff,
-        emissive: 0x7d4dff,
-        emissiveIntensity: 1.0,
-        roughness: 0.2,
-        metalness: 0.08,
-        envMapIntensity: 1.35,
-      }),
-      new THREE.MeshStandardMaterial({
-        name: 'HeroCrystalGold',
-        color: 0xffd982,
-        emissive: 0xff9d3b,
-        emissiveIntensity: 0.85,
-        roughness: 0.24,
-        metalness: 0.1,
-        envMapIntensity: 1.25,
-      }),
-    ];
+  const crystalMaterials = [
+    new THREE.MeshStandardMaterial({
+      name: 'HeroCrystalCyan',
+      color: 0x74eaff,
+      emissive: 0x2ab8ff,
+      emissiveIntensity: 1.05,
+      roughness: 0.18,
+      metalness: 0.12,
+      envMapIntensity: 1.4,
+    }),
+    new THREE.MeshStandardMaterial({
+      name: 'HeroCrystalViolet',
+      color: 0xb891ff,
+      emissive: 0x7d4dff,
+      emissiveIntensity: 0.95,
+      roughness: 0.2,
+      metalness: 0.08,
+      envMapIntensity: 1.35,
+    }),
+    new THREE.MeshStandardMaterial({
+      name: 'HeroCrystalGold',
+      color: 0xffd982,
+      emissive: 0xff9d3b,
+      emissiveIntensity: 0.75,
+      roughness: 0.24,
+      metalness: 0.1,
+      envMapIntensity: 1.25,
+    }),
+  ];
 
-    const smallOrbMaterial = new THREE.MeshBasicMaterial({
-      name: 'HeroSmallLightOrbs',
-      color: 0xdff8ff,
-      transparent: true,
-      opacity: 0.82,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
+  const smallOrbMaterial = new THREE.MeshBasicMaterial({
+    name: 'HeroSmallLightOrbs',
+    color: 0xdff8ff,
+    transparent: true,
+    opacity: 0.78,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+
+  /**
+   * Important:
+   * The hero text is placed at z = -50.
+   * Road lamps are near z = ROAD_Z +/- road offset.
+   * Keep hero crystals close to the text silhouette and avoid the center lamp/road zone,
+   * otherwise they visually look like broken lamp particles.
+   */
+  const safeCrystalPositions: readonly [number, number, number][] = [
+    [-7.4, 0.95, -0.28],
+    [-6.6, -0.45, -0.18],
+    [-5.6, 1.65, -0.34],
+    [-4.6, 0.25, -0.24],
+    [-3.5, 1.15, -0.16],
+    [-2.4, -0.85, -0.22],
+    [-1.2, 1.85, -0.30],
+    [1.2, -0.65, -0.22],
+    [2.4, 1.35, -0.18],
+    [3.5, 0.05, -0.24],
+    [4.6, 1.75, -0.34],
+    [5.6, -0.35, -0.18],
+    [6.6, 1.05, -0.28],
+    [7.4, 0.35, -0.22],
+
+    [-6.9, 2.25, -0.42],
+    [-4.1, 2.55, -0.48],
+    [-1.6, 2.35, -0.44],
+    [1.6, 2.45, -0.44],
+    [4.1, 2.55, -0.48],
+    [6.9, 2.25, -0.42],
+
+    [-7.8, -1.25, -0.2],
+    [-5.2, -1.45, -0.18],
+    [-2.6, -1.35, -0.22],
+    [2.6, -1.35, -0.22],
+    [5.2, -1.45, -0.18],
+    [7.8, -1.25, -0.2],
+  ];
+
+  for (const [index, position] of safeCrystalPositions.entries()) {
+    const isCrystal = index % 3 !== 0;
+
+    const mesh = new THREE.Mesh(
+      isCrystal ? crystalGeometry : orbGeometry,
+      isCrystal
+        ? crystalMaterials[index % crystalMaterials.length]
+        : smallOrbMaterial,
+    );
+
+    mesh.name = isCrystal ? `HeroFloatingCrystal_${index}` : `HeroLightOrb_${index}`;
+
+    const basePosition = new THREE.Vector3(position[0], position[1], position[2]);
+    mesh.position.copy(basePosition);
+
+    const scale = THREE.MathUtils.randFloat(0.75, 1.18);
+    mesh.scale.setScalar(scale);
+
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+
+    parent.add(mesh);
+
+    orbs.push({
+      mesh,
+      basePosition,
+      phase: index * 0.73,
+      orbitRadius: THREE.MathUtils.randFloat(0.08, 0.22),
+      orbitSpeed: THREE.MathUtils.randFloat(0.35, 0.82),
+      verticalAmplitude: THREE.MathUtils.randFloat(0.06, 0.18),
     });
-
-    for (let index = 0; index < 34; index += 1) {
-      const isCrystal = index % 3 !== 0;
-      const mesh = new THREE.Mesh(
-        isCrystal ? crystalGeometry : orbGeometry,
-        isCrystal
-          ? crystalMaterials[index % crystalMaterials.length]
-          : smallOrbMaterial,
-      );
-
-      mesh.name = isCrystal ? `HeroFloatingCrystal_${index}` : `HeroLightOrb_${index}`;
-
-      const angle = (index / 34) * Math.PI * 2;
-      const sideOffset = index % 2 === 0 ? -1 : 1;
-
-      const basePosition = new THREE.Vector3(
-        Math.cos(angle) * THREE.MathUtils.randFloat(4.7, 8.8),
-        THREE.MathUtils.randFloat(-1.45, 2.25),
-        THREE.MathUtils.randFloat(-0.9, 1.6) + sideOffset * 0.12,
-      );
-
-      mesh.position.copy(basePosition);
-
-      const scale = THREE.MathUtils.randFloat(0.72, 1.45);
-      mesh.scale.setScalar(scale);
-
-      mesh.castShadow = false;
-      mesh.receiveShadow = false;
-
-      parent.add(mesh);
-
-      orbs.push({
-        mesh,
-        basePosition,
-        phase: Math.random() * Math.PI * 2,
-        orbitRadius: THREE.MathUtils.randFloat(0.18, 0.62),
-        orbitSpeed: THREE.MathUtils.randFloat(0.45, 1.15),
-        verticalAmplitude: THREE.MathUtils.randFloat(0.12, 0.42),
-      });
-    }
-
-    return orbs;
   }
+
+  return orbs;
+}
+
 
   private createHeroSparkParticles(parent: THREE.Group): {
     particles: THREE.Points;
@@ -1094,11 +1126,11 @@ export class OutdoorEstateSystem {
       orb.mesh.position.set(
         orb.basePosition.x + Math.cos(orbitTime) * orb.orbitRadius,
         orb.basePosition.y + Math.sin(orbitTime * 1.35) * orb.verticalAmplitude,
-        orb.basePosition.z + Math.sin(orbitTime) * orb.orbitRadius * 0.45,
+        orb.basePosition.z + Math.sin(orbitTime) * orb.orbitRadius * 0.18,
       );
 
-      orb.mesh.rotation.x += delta * 0.7;
-      orb.mesh.rotation.y += delta * 0.95;
+      orb.mesh.rotation.x += delta * 0.55;
+      orb.mesh.rotation.y += delta * 0.72;
     }
   }
 
@@ -1267,22 +1299,57 @@ export class OutdoorEstateSystem {
       container.add(model);
       this.root.add(container);
 
-      const bulbMaterial = new THREE.MeshStandardMaterial({
-        name: 'RoadLampBulb',
-        color: 0xffd39b,
-        emissive: 0xffb36c,
-        emissiveIntensity: 0.05,
-        roughness: 0.24,
-      });
-      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), bulbMaterial);
-      bulb.position.set(0, 3.25, 0);
-      container.add(bulb);
+      /**
+       * The old bulb position was y=3.25, which placed the orange emissive sphere
+       * above the lantern cap. Keep the light source inside the glass cage instead.
+       * If the lamp model is changed later, tune only ROAD_LAMP_BULB_Y.
+       */
+      const ROAD_LAMP_BULB_Y = 2.58;
+      const ROAD_LAMP_BULB_Z = 0.0;
 
-      const light = new THREE.PointLight(0xffc58b, 0, 9.5, 2.1);
-      light.position.set(0, 3.25, 0);
+      const bulbMaterial = new THREE.MeshStandardMaterial({
+        name: 'RoadLampBulbCore',
+        color: 0xffdf9a,
+        emissive: 0xffa94f,
+        emissiveIntensity: 0.05,
+        roughness: 0.18,
+        metalness: 0.0,
+      });
+
+      const bulbCore = new THREE.Mesh(
+        new THREE.SphereGeometry(0.045, 12, 8),
+        bulbMaterial,
+      );
+      bulbCore.name = 'RoadLampBulbCore';
+      bulbCore.position.set(0, ROAD_LAMP_BULB_Y, ROAD_LAMP_BULB_Z);
+      bulbCore.castShadow = false;
+      bulbCore.receiveShadow = false;
+      container.add(bulbCore);
+
+      const bulbGlow = new THREE.Mesh(
+        new THREE.SphereGeometry(0.18, 18, 12),
+        new THREE.MeshBasicMaterial({
+          name: 'RoadLampBulbSoftGlow',
+          color: 0xffc16f,
+          transparent: true,
+          opacity: 0.22,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }),
+      );
+      bulbGlow.name = 'RoadLampBulbSoftGlow';
+      bulbGlow.position.copy(bulbCore.position);
+      bulbGlow.castShadow = false;
+      bulbGlow.receiveShadow = false;
+      container.add(bulbGlow);
+
+      const light = new THREE.PointLight(0xffc58b, 0, 8.5, 2.15);
+      light.name = 'RoadLampPointLight';
+      light.position.copy(bulbCore.position);
       light.castShadow = false;
       container.add(light);
-      this.estateLights.push({ light, baseIntensity: 30, bulbMaterial });
+
+      this.estateLights.push({ light, baseIntensity: 24, bulbMaterial });
       this.addFixedCuboid([container.position.x, 1.35, container.position.z], [0.22, 1.35, 0.22]);
     }
   }
