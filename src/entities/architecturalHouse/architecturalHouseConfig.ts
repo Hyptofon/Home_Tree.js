@@ -23,22 +23,47 @@ export const HOUSE_CONFIG = {
   },
   INTRO_TOUR: {
     ENABLED: true,
-    PLAYER_END_POSITION: [0, 0, -30.5] as Vector3Tuple,
+    PLAYER_END_POSITION: [0, 1.4, -26] as Vector3Tuple,
     WAYPOINTS: [
       {
-        position: [0, 4.8, -56] as Vector3Tuple,
-        target: [0, 1.7, -28] as Vector3Tuple,
-        duration: 1.7,
+        position: [32, 12, -38] as Vector3Tuple,
+        target: [8.8, 1.5, -22] as Vector3Tuple,
+        duration: 3.0,
       },
       {
-        position: [-6.8, 3.2, -35] as Vector3Tuple,
-        target: [0, 1.8, -28.8] as Vector3Tuple,
-        duration: 1.8,
+        position: [-30, 9, 15] as Vector3Tuple,
+        target: [0, 1.7, 2] as Vector3Tuple,
+        duration: 2.8,
       },
       {
-        position: [0, 2.0, -30.6] as Vector3Tuple,
-        target: [0, 1.35, -24.8] as Vector3Tuple,
-        duration: 1.9,
+        position: [0, 14, 40] as Vector3Tuple,
+        target: [0, 0.8, 0] as Vector3Tuple,
+        duration: 3.2,
+      },
+      {
+        position: [-12, 6, -8] as Vector3Tuple,
+        target: [0, 1.5, -2] as Vector3Tuple,
+        duration: 2.4,
+      },
+      {
+        position: [45, 5, -42] as Vector3Tuple,
+        target: [10, 2, -42] as Vector3Tuple,
+        duration: 2.8,
+      },
+      {
+        position: [-40, 5, -42] as Vector3Tuple,
+        target: [0, 1.8, -35] as Vector3Tuple,
+        duration: 2.8,
+      },
+      {
+        position: [0, 3.5, -30] as Vector3Tuple,
+        target: [0, 1.5, -26] as Vector3Tuple,
+        duration: 2.2,
+      },
+      {
+        position: [0, 1.5, -26] as Vector3Tuple,
+        target: [0, 1.4, -26] as Vector3Tuple,
+        duration: 0.8,
       },
     ],
   },

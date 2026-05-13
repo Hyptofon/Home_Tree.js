@@ -339,6 +339,7 @@ export class OutdoorEstateSystem {
     this.buildHardscape();
     this.buildFenceColliders();
     this.buildGardenDetails();
+    this.buildGrassField();
     this.registerTreeColliders();
   }
 
@@ -360,6 +361,7 @@ export class OutdoorEstateSystem {
     await this.loadSketchfabTrees();
     await this.loadSketchfabPlayground();
     await this.loadStaticProps();
+    await this.buildGrassField();
 
     try {
       await this.scheduler.enqueue('estate:custom-fence', 'background', () => this.loadCustomFence());
@@ -570,6 +572,122 @@ export class OutdoorEstateSystem {
 
   private buildGardenDetails(): void {
     this.buildPlayground();
+  }
+
+  private async buildGrassField(): Promise<void> {
+    try {
+      const grassModel = await this.getModel('/grass/realistic_grass_pack_for_games_free.glb');
+      this.prepareImportedModel(grassModel, false);
+
+      // Розбираємо модель на окремі пучки трави
+      const grassBlades: THREE.Mesh[] = [];
+      grassModel.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          grassBlades.push(child);
+        }
+      });
+
+      if (grassBlades.length === 0) {
+        console.warn('[OutdoorEstateSystem] No grass blades found in model.');
+        return;
+      }
+
+      // Створюємо InstancedMesh для кожного різновиду трави
+      const instancesPerBlade = Math.floor(50000 / grassBlades.length);
+      const totalInstances = instancesPerBlade * grassBlades.length;
+
+      for (const blade of grassBlades) {
+        const geometry = blade.geometry.clone();
+        geometry.computeBoundingBox();
+        const center = geometry.boundingBox!.getCenter(new THREE.Vector3());
+        const minY = geometry.boundingBox!.min.y;
+        geometry.translate(-center.x, -minY, -center.z);
+
+        const material = blade.material;
+        if (Array.isArray(material)) {
+          material[0].needsUpdate = true;
+        } else if (material instanceof THREE.MeshStandardMaterial) {
+          material.needsUpdate = true;
+        }
+
+        const instancedMesh = new THREE.InstancedMesh(geometry, material, instancesPerBlade);
+        instancedMesh.name = `GrassBlade_${blade.name || 'unnamed'}`;
+        instancedMesh.castShadow = true;
+        instancedMesh.receiveShadow = false;
+
+        const matrix = new THREE.Matrix4();
+        const position = new THREE.Vector3();
+        const rotation = new THREE.Euler();
+        const scale = new THREE.Vector3();
+
+        for (let i = 0; i < instancesPerBlade; i++) {
+          let x, z;
+          let attempts = 0;
+          do {
+            x = THREE.MathUtils.randFloat(ESTATE_MIN_X, ESTATE_MAX_X);
+            z = THREE.MathUtils.randFloat(ESTATE_MIN_Z, ESTATE_MAX_Z);
+            attempts++;
+          } while (this.isForbiddenGrassArea(x, z) && attempts < 10);
+
+          if (attempts >= 10) continue; 
+
+          position.set(x, 0, z);
+
+          const randomScale = THREE.MathUtils.randFloat(0.8, 1.2);
+          scale.set(randomScale, randomScale, randomScale);
+
+          rotation.set(
+            THREE.MathUtils.randFloat(-0.1, 0.1), 
+            THREE.MathUtils.randFloat(0, Math.PI * 2), 
+            THREE.MathUtils.randFloat(-0.1, 0.1)  
+          );
+
+          const quaternion = new THREE.Quaternion().setFromEuler(rotation);
+          matrix.compose(position, quaternion, scale);
+          instancedMesh.setMatrixAt(i, matrix);
+        }
+
+        instancedMesh.instanceMatrix.needsUpdate = true;
+        this.root.add(instancedMesh);
+      }
+
+      console.log(`[OutdoorEstateSystem] Generated ${totalInstances} grass instances.`);
+    } catch (error) {
+      console.warn('[OutdoorEstateSystem] Grass field failed to load.', error);
+    }
+  }
+
+  private isForbiddenGrassArea(x: number, z: number): boolean {
+    if (Math.abs(z - ROAD_Z) < ROAD_WIDTH / 2) return true;
+
+    // Під'їзд до дому
+    if (x > 6.8 && x < 10.8 && z > -36.75 && z < -14.25) return true;
+
+    // Вхідна доріжка
+    if (Math.abs(x) < 1.05 && z > -25.5 && z < -11.5) return true;
+
+    // Зона навколо будинку, щоб не класти траву на прилеглі доріжки
+    const houseMargin = 1.1;
+    const houseMinX = HOUSE_CONFIG.HOUSE_BOUNDS.MIN_X - houseMargin;
+    const houseMaxX = HOUSE_CONFIG.HOUSE_BOUNDS.MAX_X + houseMargin;
+    const houseMinZ = HOUSE_CONFIG.HOUSE_BOUNDS.MIN_Z - houseMargin;
+    const houseMaxZ = HOUSE_CONFIG.HOUSE_BOUNDS.MAX_Z + houseMargin;
+    if (x > houseMinX && x < houseMaxX && z > houseMinZ && z < houseMaxZ) return true;
+
+    // Балкон спереду
+    if (x > HOUSE_CONFIG.BALCONY.MIN_X - 0.5 && x < HOUSE_CONFIG.BALCONY.MAX_X + 0.5 && 
+        z > HOUSE_CONFIG.BALCONY.MIN_Z - 0.5 && z < HOUSE_CONFIG.BALCONY.MAX_Z + 1.5) return true;
+
+    // Дорожка позаду будинку (деревяна дека)
+    if (x > -8 && x < 8 && z > 11 && z < 17) return true;
+
+    // Майданчик
+    if (x > -22 && x < -15 && z > -25 && z < -20) return true;
+
+    // Пікнік зона (приблизно)
+    if (x > 20 && x < 28 && z > 15 && z < 22) return true;
+
+    return false;
   }
 
   private buildPlayground(): void {
@@ -1250,14 +1368,14 @@ export class OutdoorEstateSystem {
       try {
         const model = await this.getModel('/models/my_car/mitsubishi_evo.glb');
         this.prepareImportedModel(model, true);
-        this.normalizeModel(model, { width: 1.85 * 1.5, depth: 4.5 * 1.5, height: 1.35 * 1.5 });
+        this.normalizeModel(model, { width: 1.85 * 1.25, depth: 4.5 * 1.25, height: 1.35 * 1.25 });
         const container = new THREE.Group();
         container.name = 'UserCar_MitsubishiEvo';
         container.position.set(DRIVEWAY_X, 0, -22); // На в'їзді в дім
         container.rotation.y = Math.PI; // Face towards the road
         container.add(model);
         this.root.add(container);
-        this.addFixedCuboid([DRIVEWAY_X, 0.975, -22], [1.5, 0.975, 3.45]); // Колайдер для авто (збільшений в 1.5 рази)
+        this.addFixedCuboid([DRIVEWAY_X, 0.975, -22], [1.25, 0.975, 3.45]); // Колайдер для авто (збільшений в 1.5 рази)
       } catch (e) { console.warn('[OutdoorEstateSystem] Mitsubishi Evo failed.', e); }
     });
 
