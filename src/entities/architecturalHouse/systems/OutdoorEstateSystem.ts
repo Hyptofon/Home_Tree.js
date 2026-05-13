@@ -70,6 +70,17 @@ type VegetationPlacement = {
   readonly lodDistance: number;
 };
 
+type GrassPlacementZone = {
+  readonly name: string;
+  readonly minX: number;
+  readonly maxX: number;
+  readonly minZ: number;
+  readonly maxZ: number;
+  readonly weight: number;
+  readonly minScale: number;
+  readonly maxScale: number;
+};
+
 
 type HeroFxOrb = {
   readonly mesh: THREE.Object3D;
@@ -103,6 +114,21 @@ const ESTATE_MAX_X = 28;
 const ESTATE_MIN_Z = -34;
 const ESTATE_MAX_Z = 22;
 const USE_IMPORTED_TRAFFIC_CARS = true;
+
+// Grass is spread over a much larger exterior area, but the instance budget is still capped.
+// This gives the whole world a filled look without exploding draw cost.
+const GRASS_INSTANCE_BUDGET = 32000;
+const GRASS_PLACEMENT_ZONES: readonly GrassPlacementZone[] = [
+  // Dense grass where the player actually walks around the house.
+  { name: 'EstatePlayableArea', minX: -32, maxX: 32, minZ: -36, maxZ: 24, weight: 0.42, minScale: 0.72, maxScale: 1.12 },
+
+  // Medium-density grass near the road and visible hero-sign area.
+  { name: 'RoadAndEntranceArea', minX: -90, maxX: 90, minZ: -76, maxZ: -32, weight: 0.34, minScale: 0.55, maxScale: 0.95 },
+
+  // Sparse background grass: fills the horizon but stays cheap.
+  { name: 'BackgroundWorldArea', minX: -140, maxX: 140, minZ: -150, maxZ: 72, weight: 0.24, minScale: 0.38, maxScale: 0.78 },
+] as const;
+const GRASS_ZONE_TOTAL_WEIGHT = GRASS_PLACEMENT_ZONES.reduce((sum, zone) => sum + zone.weight, 0);
 
 const TREE_LAYOUT = [
   // Inside
@@ -311,6 +337,8 @@ export class OutdoorEstateSystem {
   private trafficInitialized = false;
   private elapsed = 0;
   private carUpdateAccumulator = 0;
+  private grassFieldLoaded = false;
+  private grassFieldLoading = false;
   private heroFx?: HeroFx;
 
   /**
@@ -631,11 +659,16 @@ export class OutdoorEstateSystem {
   }
 
   private async buildGrassField(): Promise<void> {
+    if (this.grassFieldLoaded || this.grassFieldLoading) return;
+
+    this.grassFieldLoading = true;
+
     try {
       const grassModel = await this.getModel('/grass/realistic_grass_pack_for_games_free.glb');
       this.prepareImportedModel(grassModel, false);
 
-      // Розбираємо модель на окремі пучки трави
+      // The source model contains several separate grass blade meshes.
+      // We instance each mesh type, but keep the total global budget fixed.
       const grassBlades: THREE.Mesh[] = [];
       grassModel.traverse((child) => {
         if (child instanceof THREE.Mesh) {
@@ -648,8 +681,7 @@ export class OutdoorEstateSystem {
         return;
       }
 
-      // Створюємо InstancedMesh для кожного різновиду трави
-      const instancesPerBlade = Math.floor(50000 / grassBlades.length);
+      const instancesPerBlade = Math.max(1, Math.floor(GRASS_INSTANCE_BUDGET / grassBlades.length));
       const totalInstances = instancesPerBlade * grassBlades.length;
 
       for (const blade of grassBlades) {
@@ -659,57 +691,66 @@ export class OutdoorEstateSystem {
         const minY = geometry.boundingBox!.min.y;
         geometry.translate(-center.x, -minY, -center.z);
 
-        const material = blade.material;
-        if (Array.isArray(material)) {
-          material[0].needsUpdate = true;
-        } else if (material instanceof THREE.MeshStandardMaterial) {
+        const material = Array.isArray(blade.material)
+          ? blade.material[0]
+          : blade.material;
+
+        if (material instanceof THREE.Material) {
+          material.depthWrite = true;
           material.needsUpdate = true;
         }
 
         const instancedMesh = new THREE.InstancedMesh(geometry, material, instancesPerBlade);
-        instancedMesh.name = `GrassBlade_${blade.name || 'unnamed'}`;
-        instancedMesh.castShadow = true;
+        instancedMesh.name = `GrassBlade_${blade.name || 'unnamed'}_WorldSpread`;
+
+        // Critical performance choice: thousands of tiny grass shadows destroy FPS.
+        // The grass is visually dense enough without casting or receiving shadows.
+        instancedMesh.castShadow = false;
         instancedMesh.receiveShadow = false;
+        instancedMesh.frustumCulled = true;
 
         const matrix = new THREE.Matrix4();
         const position = new THREE.Vector3();
         const rotation = new THREE.Euler();
         const scale = new THREE.Vector3();
+        const quaternion = new THREE.Quaternion();
 
-        for (let i = 0; i < instancesPerBlade; i++) {
-          let x, z;
-          let attempts = 0;
-          do {
-            x = THREE.MathUtils.randFloat(ESTATE_MIN_X, ESTATE_MAX_X);
-            z = THREE.MathUtils.randFloat(ESTATE_MIN_Z, ESTATE_MAX_Z);
-            attempts++;
-          } while (this.isForbiddenGrassArea(x, z) && attempts < 10);
+        let writtenInstances = 0;
 
-          if (attempts >= 10) continue; 
+        for (let i = 0; i < instancesPerBlade; i += 1) {
+          const placement = this.resolveGrassPlacement();
+          if (!placement) continue;
 
-          position.set(x, 0, z);
+          position.set(placement.x, 0, placement.z);
 
-          const randomScale = THREE.MathUtils.randFloat(0.8, 1.2);
-          scale.set(randomScale, randomScale, randomScale);
+          const randomScale = THREE.MathUtils.randFloat(placement.zone.minScale, placement.zone.maxScale);
+          const nonUniformWidth = THREE.MathUtils.randFloat(0.82, 1.28);
+          scale.set(randomScale * nonUniformWidth, randomScale, randomScale * THREE.MathUtils.randFloat(0.86, 1.18));
 
           rotation.set(
-            THREE.MathUtils.randFloat(-0.1, 0.1), 
-            THREE.MathUtils.randFloat(0, Math.PI * 2), 
-            THREE.MathUtils.randFloat(-0.1, 0.1)  
+            THREE.MathUtils.randFloat(-0.08, 0.08),
+            THREE.MathUtils.randFloat(0, Math.PI * 2),
+            THREE.MathUtils.randFloat(-0.08, 0.08),
           );
 
-          const quaternion = new THREE.Quaternion().setFromEuler(rotation);
+          quaternion.setFromEuler(rotation);
           matrix.compose(position, quaternion, scale);
-          instancedMesh.setMatrixAt(i, matrix);
+          instancedMesh.setMatrixAt(writtenInstances, matrix);
+          writtenInstances += 1;
         }
 
+        instancedMesh.count = writtenInstances;
         instancedMesh.instanceMatrix.needsUpdate = true;
+        instancedMesh.computeBoundingSphere();
         this.root.add(instancedMesh);
       }
 
-      console.log(`[OutdoorEstateSystem] Generated ${totalInstances} grass instances.`);
+      this.grassFieldLoaded = true;
+      console.log(`[OutdoorEstateSystem] Generated up to ${totalInstances} optimized grass instances across the world.`);
     } catch (error) {
       console.warn('[OutdoorEstateSystem] Grass field failed to load.', error);
+    } finally {
+      this.grassFieldLoading = false;
     }
   }
 
@@ -1134,8 +1175,40 @@ export class OutdoorEstateSystem {
     }
   }
 
+  private resolveGrassPlacement(): { readonly x: number; readonly z: number; readonly zone: GrassPlacementZone } | undefined {
+    for (let attempt = 0; attempt < 18; attempt += 1) {
+      const zone = this.pickGrassPlacementZone();
+      const x = THREE.MathUtils.randFloat(zone.minX, zone.maxX);
+      const z = THREE.MathUtils.randFloat(zone.minZ, zone.maxZ);
+
+      if (!this.isForbiddenGrassArea(x, z)) {
+        return { x, z, zone };
+      }
+    }
+
+    return undefined;
+  }
+
+  private pickGrassPlacementZone(): GrassPlacementZone {
+    let threshold = Math.random() * GRASS_ZONE_TOTAL_WEIGHT;
+
+    for (const zone of GRASS_PLACEMENT_ZONES) {
+      threshold -= zone.weight;
+      if (threshold <= 0) return zone;
+    }
+
+    return GRASS_PLACEMENT_ZONES[GRASS_PLACEMENT_ZONES.length - 1];
+  }
+
   private isForbiddenGrassArea(x: number, z: number): boolean {
-    if (Math.abs(z - ROAD_Z) < ROAD_WIDTH / 2) return true;
+    if (Math.abs(z - ROAD_Z) < ROAD_WIDTH / 2 + 0.9) return true;
+
+    // Keep grass away from the exact 3D text base and road-lamp bases.
+    if (x > -12 && x < 12 && z > -54 && z < -46) return true;
+    for (const lamp of LAMP_LAYOUT) {
+      const lampZ = ROAD_Z + lamp.side * (ROAD_WIDTH / 2 + 1.55);
+      if (Math.abs(x - lamp.x) < 0.7 && Math.abs(z - lampZ) < 0.7) return true;
+    }
 
     // Під'їзд до дому
     if (x > 6.8 && x < 10.8 && z > -36.75 && z < -14.25) return true;
